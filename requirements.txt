@@ -8,3 +8,7 @@ torch
 peft
 gradio==3.41.2
 protobuf==3.20
+
+omegaconf
+controlnet_aux
+pyav==12.0.5
