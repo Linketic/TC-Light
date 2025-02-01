@@ -18,7 +18,7 @@ from briarmbg import BriaRMBG
 from plugin.VidToMe.utils import CONTROLNET_DICT
 from plugin.VidToMe.utils import load_config, save_config
 from plugin.VidToMe.utils import get_controlnet_kwargs, get_frame_ids, get_latents_dir, init_model, seed_everything
-from plugin.VidToMe.utils import prepare_control, load_latent, load_video, prepare_depth, save_video
+from plugin.VidToMe.utils import prepare_control, load_latent, load_video, prepare_depth, save_video, save_frames
 from plugin.VidToMe.utils import register_time, register_attention_control, register_conv_control
 
 from plugin.VidToMe import vidtome
@@ -420,25 +420,6 @@ class Generator(nn.Module):
             concat_conds = self.vae.encode(self.frames).latent_dist.mode() * self.vae.config.scaling_factor
             conds, unconds = encode_prompt_pair(positive_prompt=edit_prompt, negative_prompt=self.negative_prompt)
 
-            # generate separately
-            # latents_list = []
-            # for i in range(self.frames.shape[0]):
-            #     rng = torch.Generator(device=device).manual_seed(int(self.seed))
-            #     latent = self.pipe(
-            #         prompt_embeds=conds,
-            #         negative_prompt_embeds=unconds,
-            #         width=self.frames.shape[3],
-            #         height=self.frames.shape[2],
-            #         num_inference_steps=self.n_timesteps,
-            #         num_images_per_prompt=1,
-            #         generator=rng,
-            #         output_type='latent',
-            #         guidance_scale=self.guidance_scale,
-            #         cross_attention_kwargs={'concat_conds': concat_conds[i:i+1]},
-            #     ).images.to(vae.dtype)
-            #     latents_list.append(latent)
-            # clean_latent = torch.cat(latents_list, dim=0)
-
             # rng = torch.Generator(device=device).manual_seed(int(self.seed))
             # clean_latent = self.pipe(
             #     prompt_embeds=conds,
@@ -452,17 +433,22 @@ class Generator(nn.Module):
             #     guidance_scale=self.guidance_scale,
             #     cross_attention_kwargs={'concat_conds': concat_conds},
             # ).images.to(vae.dtype)
-            # clean_frames = self.decode_latents_batch(clean_latent).to(device=self.vae.device, dtype=self.vae.dtype)
+            # clean_frames = self.decode_latents_batch(clean_latent)
 
             prompt_embeds = torch.cat([unconds, conds])
             # Comment this if you have enough GPU memory
             clean_latent = self.ddim_sample(self.init_noise, prompt_embeds, concat_conds)  
             torch.cuda.empty_cache()
             clean_frames = self.decode_latents_batch(clean_latent)
-
+            
             cur_output_path = os.path.join(output_path, edit_name)
             save_config(self.config, cur_output_path, gene = True)
-            save_video(clean_frames, cur_output_path, save_frame = self.save_frame)
+            save_video(clean_frames, cur_output_path, save_frame=self.save_frame)
+
+            if not os.path.exists(os.path.join(output_path, edit_name, "gt")) or \
+                len(os.listdir(os.path.join(output_path, edit_name, "gt"))) != len(self.frames):
+                self.frames = (self.frames / 2 + 0.5).clamp(0, 1).to(device=clean_frames.device, dtype=clean_frames.dtype)
+                save_video(self.frames, os.path.join(output_path, edit_name), save_frame = self.save_frame, post_fix = "_gt")
 
 
 if __name__ == "__main__":

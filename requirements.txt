@@ -12,3 +12,6 @@ protobuf==3.20
 omegaconf
 controlnet_aux
 pyav==12.0.5
+clip-by-openai
+scikit-learn
+-e git+https://github.com/openai/CLIP.git
