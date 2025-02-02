@@ -79,7 +79,11 @@ if __name__ == '__main__':
                         source_pil_list = [im.resize(pil_list[0].size) for im in source_pil_list]
                     
                     scores['clip-frame'] = eu.clip_frame(pil_list, preprocess, device, model)
-                    scores['clip-text'] = eu.clip_text(pil_list, prompt, preprocess, device, model)
+                    try:
+                        scores['clip-text'] = eu.clip_text(pil_list, prompt, preprocess, device, model)
+                    except:
+                        scores['clip-text'] = 0
+                        print(f'Error in clip-text for {video_name} - {prompt}')
                     
                     scores['pick-score'] = eu.pick_score_func(pil_list, prompt, pick_model, pick_processor, device)
                     if k == 'rerender':
@@ -89,7 +93,7 @@ if __name__ == '__main__':
                     else:
                         # scores['warp-error-l1'] = eu.warp_video(pil_list, source_pil_list, raft_model, device, l2_norm)
                         # scores['warp-error-l2'] = eu.warp_video(pil_list, source_pil_list, raft_model, device, l1_norm)
-                        scores['warp-error-ssim'] = eu.warp_video(pil_list, source_pil_list, raft_model, device, structural_similarity)
+                        scores['warp-error-ssim'] = eu.SaveWarpingImage(pil_list, source_pil_list, raft_model, device, structural_similarity)
                     # print(f'{video_name} - {prompt} - {k} - ', end='\n')
 
                     if eval_cost:

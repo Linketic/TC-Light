@@ -23,6 +23,12 @@ from plugin.VidToMe.utils import register_time, register_attention_control, regi
 
 from plugin.VidToMe import vidtome
 
+from cosmos1.models.diffusion.prompt_upsampler.video2world_prompt_upsampler_inference import (
+    create_vlm_prompt_upsampler,
+    prepare_dialog,
+    run_chat_completion,
+)
+
 # suppress partial model loading warning
 logging.set_verbosity_error()
 
@@ -122,6 +128,15 @@ class Generator(nn.Module):
         self.global_merge_ratio = gene_config.global_merge_ratio
         self.global_rand = gene_config.global_rand
         self.align_batch = gene_config.align_batch
+
+        if gene_config.prompt is None:
+            dialog = prepare_dialog(config.input_path)
+            prompt_upsampler = create_vlm_prompt_upsampler(
+                checkpoint_dir=gene_config.prompt_upsampler_ckpt,
+            )
+            gene_config.prompt = run_chat_completion(
+                prompt_upsampler, dialog, max_gen_len=400, temperature=0.01, top_p=0.9, logprobs=False
+            )
 
         self.prompt = gene_config.prompt
         self.negative_prompt = gene_config.negative_prompt

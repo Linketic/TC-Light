@@ -1,5 +1,5 @@
 diffusers==0.27.2
-transformers==4.36.2
+transformers==4.45.0
 opencv-python
 safetensors
 pillow==10.2.0
@@ -12,6 +12,14 @@ protobuf==3.20
 omegaconf
 controlnet_aux
 pyav==12.0.5
-clip-by-openai
 scikit-learn
 -e git+https://github.com/openai/CLIP.git
+
+# cosmos
+loguru
+iopath
+termcolor
+pynvml
+nltk
+better_profanity
+mediapipe

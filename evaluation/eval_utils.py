@@ -174,133 +174,114 @@ def prepare_raft_model(device):
 
     return model
 
-def flow_warp(img: np.ndarray,
-              flow: np.ndarray,
-              filling_value: int = 0,
-              interpolate_mode: str = 'nearest'):
-    '''Use flow to warp img.
+def load_image(imfile, DEVICE):
+    img = np.array(imfile).astype(np.uint8)
+    img = torch.from_numpy(img).permute(2, 0, 1).float()
+    return img[None].to(DEVICE)
 
-    Args:
-        img (ndarray): Image to be warped.
-        flow (ndarray): Optical Flow.
-        filling_value (int): The missing pixels will be set with filling_value.
-        interpolate_mode (str): bilinear -> Bilinear Interpolation;
-                                nearest -> Nearest Neighbor.
+def resize_flow(flow, img_h, img_w):
+    flow_h, flow_w = flow.shape[0], flow.shape[1]
+    flow[:, :, 0] *= float(img_w) / float(flow_w)
+    flow[:, :, 1] *= float(img_h) / float(flow_h)
+    flow = cv2.resize(flow, (img_w, img_h), cv2.INTER_LINEAR)
 
-    Returns:
-        ndarray: Warped image with the same shape of img
-    '''
-    warnings.warn('This function is just for prototyping and cannot '
-                  'guarantee the computational efficiency.')
-    assert flow.ndim == 3, 'Flow must be in 3D arrays.'
-    height = flow.shape[0]
-    width = flow.shape[1]
-    channels = img.shape[2]
+    return flow
 
-    output = np.ones(
-        (height, width, channels), dtype=img.dtype) * filling_value
+def warp_flow(img, flow):
+    h, w = flow.shape[:2]
+    flow_new = flow.copy()
+    flow_new[:, :, 0] += np.arange(w)
+    flow_new[:, :, 1] += np.arange(h)[:, np.newaxis]
 
-    grid = np.indices((height, width)).swapaxes(0, 1).swapaxes(1, 2)
-    dx = grid[:, :, 0] + flow[:, :, 1]
-    dy = grid[:, :, 1] + flow[:, :, 0]
-    sx = np.floor(dx).astype(int)
-    sy = np.floor(dy).astype(int)
-    valid = (sx >= 0) & (sx < height - 1) & (sy >= 0) & (sy < width - 1)
-
-    if interpolate_mode == 'nearest':
-        output[valid, :] = img[dx[valid].round().astype(int),
-                               dy[valid].round().astype(int), :]
-    elif interpolate_mode == 'bilinear':
-        # dirty walkround for integer positions
-        eps_ = 1e-6
-        dx, dy = dx + eps_, dy + eps_
-        left_top_ = img[np.floor(dx[valid]).astype(int),
-                        np.floor(dy[valid]).astype(int), :] * (
-                            np.ceil(dx[valid]) - dx[valid])[:, None] * (
-                                np.ceil(dy[valid]) - dy[valid])[:, None]
-        left_down_ = img[np.ceil(dx[valid]).astype(int),
-                         np.floor(dy[valid]).astype(int), :] * (
-                             dx[valid] - np.floor(dx[valid]))[:, None] * (
-                                 np.ceil(dy[valid]) - dy[valid])[:, None]
-        right_top_ = img[np.floor(dx[valid]).astype(int),
-                         np.ceil(dy[valid]).astype(int), :] * (
-                             np.ceil(dx[valid]) - dx[valid])[:, None] * (
-                                 dy[valid] - np.floor(dy[valid]))[:, None]
-        right_down_ = img[np.ceil(dx[valid]).astype(int),
-                          np.ceil(dy[valid]).astype(int), :] * (
-                              dx[valid] - np.floor(dx[valid]))[:, None] * (
-                                  dy[valid] - np.floor(dy[valid]))[:, None]
-        output[valid, :] = left_top_ + left_down_ + right_top_ + right_down_
-    else:
-        raise NotImplementedError(
-            'We only support interpolation modes of nearest and bilinear, '
-            f'but got {interpolate_mode}.')
-    return output.astype(img.dtype)
-
-def calculate_flow(pil_list, model, DEVICE):
-    def load_image(imfile, DEVICE):
-        img = np.array(imfile).astype(np.uint8)
-        img = torch.from_numpy(img).permute(2, 0, 1).float()
-        return img[None].to(DEVICE)
-
-    flow_up_list = []
-    with torch.no_grad():
-        images = pil_list.copy()
-        for imfile1, imfile2 in zip(images[:-1], images[1:]):
-            image1 = load_image(imfile1, DEVICE)
-            image2 = load_image(imfile2, DEVICE)
-
-            padder = InputPadder(image1.shape)
-            image1, image2 = padder.pad(image1, image2)
-
-            _, flow_up = model(image1, image2, iters=20, test_mode=True)
-
-            flow_up_list.append(flow_up.detach().squeeze().permute(1,2,0).cpu().numpy())
-    return flow_up_list
-
-def rerender_warp(img, flow, mode='bilinear'):
-    expand = False
-    if len(img.shape) == 2:
-        expand = True
-        img = np.expand_dims(img, 2)
-
-    img = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(0)
-    dtype = img.dtype
-    img = img.to(torch.float)
-    flow = torch.from_numpy(flow).permute(2, 0, 1).unsqueeze(0)
-    res = flow_warp_rerender(img, flow, mode=mode)
-    res = res.to(dtype)
-    res = res[0].cpu().permute(1, 2, 0).numpy()
-    if expand:
-        res = res[:, :, 0]
+    res = cv2.remap(
+        img, flow_new, None, cv2.INTER_CUBIC, borderMode=cv2.BORDER_CONSTANT
+    )
     return res
 
-def opencv_warp(img, flow):
+def compute_fwdbwd_mask(fwd_flow, bwd_flow):
+    alpha_1 = 0.5
+    alpha_2 = 0.5
 
-    h, w = flow.shape[:2]
-    flow[:,:,0] += np.arange(w)
-    flow[:,:,1] += np.arange(h)[:,np.newaxis]
-    warped_img = cv2.remap(img, flow, None, cv2.INTER_LINEAR)
-    return warped_img
+    bwd2fwd_flow = warp_flow(bwd_flow, fwd_flow)
+    fwd_lr_error = np.linalg.norm(fwd_flow + bwd2fwd_flow, axis=-1)
+    fwd_mask = (
+        fwd_lr_error
+        < alpha_1
+        * (np.linalg.norm(fwd_flow, axis=-1) + np.linalg.norm(bwd2fwd_flow, axis=-1))
+        + alpha_2
+    )
 
-rearrange = lambda x: (np.array(x)/255).reshape(-1,1)
+    fwd2bwd_flow = warp_flow(fwd_flow, bwd_flow)
+    bwd_lr_error = np.linalg.norm(bwd_flow + fwd2bwd_flow, axis=-1)
 
-def warp_video(edit_pil_list, source_pil_list, raft_model, device, distance_func):
-    # print('source size', source_pil_list[0].size)
-    flow_up_list = calculate_flow(source_pil_list, raft_model, device)
+    bwd_mask = (
+        bwd_lr_error
+        < alpha_1
+        * (np.linalg.norm(bwd_flow, axis=-1) + np.linalg.norm(fwd2bwd_flow, axis=-1))
+        + alpha_2
+    )
+    return fwd_mask, bwd_mask
 
-    res_list = [edit_pil_list[0]]
-    for i,pil_img in enumerate(edit_pil_list[:-1]):
-        if i >= len(flow_up_list):
-            print("warning: flow_up_list is shorter than edit_pil_list")
-            break
-        warped = opencv_warp(np.array(pil_img), flow_up_list[i])
-        pil_warped = Image.fromarray(warped)
-        # pil_warped.save(f'warped_{i}.png')
-        res_list.append(pil_warped)
-    # res_list[0].save('warped.gif', save_all=True, append_images=res_list[1:], duration=100, loop=0)
-    # print('size of video', res_list[0].size)
-    if distance_func == structural_similarity:
-        return np.mean(np.array([distance_func(np.array(edit_pil_list[i]), np.array(res_list[i]), channel_axis=2) for i in range(len(res_list))]))
-    else:
-        return np.mean(np.array([distance_func(edit_pil_list[i], res_list[i]) for i in range(len(res_list))]))
+def SaveWarpingImage(edit_pil_list, source_pil_list, raft_model, device, distance_func):
+
+    img_w, img_h = edit_pil_list[0].size
+
+    ssim_list = []
+    for idx, pil_img in enumerate(edit_pil_list[:-1]):
+
+        pil_img = load_image(pil_img, device)
+        gt = load_image(source_pil_list[idx], device)
+
+        next_idx = idx+1
+        pil_next_img = load_image(edit_pil_list[next_idx], device)
+        gt_next = load_image(source_pil_list[next_idx], device)
+        
+        padder = InputPadder(gt.shape)
+        gt, gt_next = padder.pad(gt, gt_next)
+        pil_img, pil_next_img = padder.pad(pil_img, pil_next_img)
+
+        _, flow_fwd = raft_model(gt, gt_next, iters=20, test_mode=True)
+        _, flow_bwd = raft_model(gt_next, gt, iters=20, test_mode=True)
+        flow_fwd = padder.unpad(flow_fwd[0]).detach().cpu().numpy().transpose(1, 2, 0)
+        flow_bwd = padder.unpad(flow_bwd[0]).detach().cpu().numpy().transpose(1, 2, 0)
+
+        pil_img = padder.unpad(pil_img[0]).detach().cpu().numpy().transpose(1, 2, 0)
+        pil_next_img = padder.unpad(pil_next_img[0]).detach().cpu().numpy().transpose(1, 2, 0)
+
+        flow_fwd = resize_flow(flow_fwd, img_h, img_w)
+        flow_bwd = resize_flow(flow_bwd, img_h, img_w)
+
+        pil_img = resize_flow(pil_img, img_h, img_w)
+        pil_next_img = resize_flow(pil_next_img, img_h, img_w)
+
+        _, mask_bwd = compute_fwdbwd_mask(flow_fwd, flow_bwd)
+
+        warped_frame = warp_flow(pil_img, flow_bwd)
+        warped_zero = np.zeros_like(warped_frame)
+
+        # warping the mask
+        mask_bwd = np.expand_dims(mask_bwd, axis=-1)
+        warped_frame = np.where(mask_bwd, warped_frame, warped_zero)
+        pil_next_img = np.where(mask_bwd, pil_next_img, warped_zero)
+
+        if distance_func == structural_similarity:
+            ssim = distance_func(np.uint8(warped_frame), np.uint8(pil_next_img), channel_axis=2)
+        else:
+            ssim = distance_func(np.uint8(warped_frame), np.uint8(pil_next_img))
+        
+        # print(f'Idx {idx}: {ssim}')
+        ssim_list.append(ssim)
+
+        # warped_frame = cv2.cvtColor(warped_frame, cv2.COLOR_BGR2RGB)
+        # pil_next_img = cv2.cvtColor(pil_next_img, cv2.COLOR_BGR2RGB)
+
+        # import os
+        # if not os.path.exists('warped'):
+        #     os.makedirs('warped')
+        # if not os.path.exists('warped_gt'):
+        #     os.makedirs('warped_gt')
+        
+        # cv2.imwrite(os.path.join('warped', f'{idx}.png'), warped_frame)
+        # cv2.imwrite(os.path.join('warped_gt', f'{idx}.png'), pil_next_img)
+
+    return np.mean(ssim_list)
