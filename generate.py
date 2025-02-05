@@ -6,15 +6,6 @@ import numpy as np
 from tqdm import tqdm
 from transformers import logging
 
-import safetensors.torch as sf
-from torch.hub import download_url_to_file
-from diffusers import DiffusionPipeline
-from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline
-from diffusers import AutoencoderKL, UNet2DConditionModel, DDIMScheduler, EulerAncestralDiscreteScheduler, DPMSolverMultistepScheduler
-from diffusers.models.attention_processor import AttnProcessor2_0
-from transformers import CLIPTextModel, CLIPTokenizer
-from briarmbg import BriaRMBG
-
 from plugin.VidToMe.utils import CONTROLNET_DICT
 from plugin.VidToMe.utils import load_config, save_config
 from plugin.VidToMe.utils import get_controlnet_kwargs, get_frame_ids, get_latents_dir, init_model, seed_everything
@@ -31,46 +22,6 @@ from cosmos1.models.diffusion.prompt_upsampler.video2world_prompt_upsampler_infe
 
 # suppress partial model loading warning
 logging.set_verbosity_error()
-
-@torch.inference_mode()
-def encode_prompt_inner(txt: str):
-    max_length = tokenizer.model_max_length
-    chunk_length = tokenizer.model_max_length - 2
-    id_start = tokenizer.bos_token_id
-    id_end = tokenizer.eos_token_id
-    id_pad = id_end
-
-    def pad(x, p, i):
-        return x[:i] if len(x) >= i else x + [p] * (i - len(x))
-
-    tokens = tokenizer(txt, truncation=False, add_special_tokens=False)["input_ids"]
-    chunks = [[id_start] + tokens[i: i + chunk_length] + [id_end] for i in range(0, len(tokens), chunk_length)]
-    chunks = [pad(ck, id_pad, max_length) for ck in chunks]
-
-    token_ids = torch.tensor(chunks).to(device=device, dtype=torch.int64)
-    conds = text_encoder(token_ids).last_hidden_state
-
-    return conds
-
-@torch.inference_mode()
-def encode_prompt_pair(positive_prompt, negative_prompt):
-    c = encode_prompt_inner(positive_prompt)
-    uc = encode_prompt_inner(negative_prompt)
-
-    c_len = float(len(c))
-    uc_len = float(len(uc))
-    max_count = max(c_len, uc_len)
-    c_repeat = int(math.ceil(max_count / c_len))
-    uc_repeat = int(math.ceil(max_count / uc_len))
-    max_chunk = max(len(c), len(uc))
-
-    c = torch.cat([c] * c_repeat, dim=0)[:max_chunk]
-    uc = torch.cat([uc] * uc_repeat, dim=0)[:max_chunk]
-
-    c = torch.cat([p[None, ...] for p in c], dim=1)
-    uc = torch.cat([p[None, ...] for p in uc], dim=1)
-
-    return c, uc
 
 class Generator(nn.Module):
     def __init__(self, vae, pipe, scheduler, config):
@@ -105,7 +56,7 @@ class Generator(nn.Module):
         scheduler.set_timesteps(gene_config.n_timesteps, device=self.device)
         self.scheduler = scheduler
         num_frames = len(list(range(*config.generation.frame_range)))
-        self.rng = [torch.Generator(device=device).manual_seed(int(self.seed))] * num_frames
+        self.rng = [torch.Generator(device=self.device).manual_seed(int(self.seed))] * num_frames
 
         self.batch_size = 2
         self.control = gene_config.control
@@ -129,14 +80,15 @@ class Generator(nn.Module):
         self.global_rand = gene_config.global_rand
         self.align_batch = gene_config.align_batch
 
-        if gene_config.prompt is None:
-            dialog = prepare_dialog(config.input_path)
-            prompt_upsampler = create_vlm_prompt_upsampler(
-                checkpoint_dir=gene_config.prompt_upsampler_ckpt,
-            )
-            gene_config.prompt = run_chat_completion(
-                prompt_upsampler, dialog, max_gen_len=400, temperature=0.01, top_p=0.9, logprobs=False
-            )
+        for prompt_name in gene_config.prompt.keys():
+            if gene_config.prompt[prompt_name] is None:
+                dialog = prepare_dialog(config.input_path)
+                prompt_upsampler = create_vlm_prompt_upsampler(
+                    checkpoint_dir=gene_config.prompt_upsampler_ckpt,
+                )
+                gene_config.prompt[prompt_name] = run_chat_completion(
+                    prompt_upsampler, dialog, max_gen_len=400, temperature=0.01, top_p=0.9, logprobs=False
+                )
 
         self.prompt = gene_config.prompt
         self.negative_prompt = gene_config.negative_prompt
@@ -159,6 +111,46 @@ class Generator(nn.Module):
     def activate_vidtome(self):
         vidtome.apply_patch(self.pipe, self.local_merge_ratio, self.merge_global, self.global_merge_ratio, 
             seed = self.seed, batch_size = self.batch_size, align_batch = self.use_pnp or self.align_batch, global_rand = self.global_rand)        
+
+    @torch.inference_mode()
+    def encode_prompt_inner(self, txt: str):
+        max_length = self.tokenizer.model_max_length
+        chunk_length = self.tokenizer.model_max_length - 2
+        id_start = self.tokenizer.bos_token_id
+        id_end = self.tokenizer.eos_token_id
+        id_pad = id_end
+
+        def pad(x, p, i):
+            return x[:i] if len(x) >= i else x + [p] * (i - len(x))
+
+        tokens = self.tokenizer(txt, truncation=False, add_special_tokens=False)["input_ids"]
+        chunks = [[id_start] + tokens[i: i + chunk_length] + [id_end] for i in range(0, len(tokens), chunk_length)]
+        chunks = [pad(ck, id_pad, max_length) for ck in chunks]
+
+        token_ids = torch.tensor(chunks).to(device=self.device, dtype=torch.int64)
+        conds = self.text_encoder(token_ids).last_hidden_state
+
+        return conds
+
+    @torch.inference_mode()
+    def encode_prompt_pair(self, positive_prompt, negative_prompt):
+        c = self.encode_prompt_inner(positive_prompt)
+        uc = self.encode_prompt_inner(negative_prompt)
+
+        c_len = float(len(c))
+        uc_len = float(len(uc))
+        max_count = max(c_len, uc_len)
+        c_repeat = int(math.ceil(max_count / c_len))
+        uc_repeat = int(math.ceil(max_count / uc_len))
+        max_chunk = max(len(c), len(uc))
+
+        c = torch.cat([c] * c_repeat, dim=0)[:max_chunk]
+        uc = torch.cat([uc] * uc_repeat, dim=0)[:max_chunk]
+
+        c = torch.cat([p[None, ...] for p in c], dim=1)
+        uc = torch.cat([p[None, ...] for p in uc], dim=1)
+
+        return c, uc
 
     @torch.no_grad()
     def get_text_embeds_input(self, prompt, negative_prompt):
@@ -187,18 +179,20 @@ class Generator(nn.Module):
     def prepare_data(self, data_path, latent_path, frame_ids):
         self.frames = load_video(data_path, self.frame_height,
                                  self.frame_width, frame_ids=frame_ids, device=self.device, base=8)
-        # self.init_noise = load_latent(
-        #     latent_path, t=self.scheduler.timesteps[0], frame_ids=frame_ids).to(self.dtype).to(self.device)
-        self.init_noise = self.pipe.prepare_latents(
-            self.frames.shape[0],
-            self.pipe.unet.config.in_channels,
-            self.frames.shape[2],
-            self.frames.shape[3],
-            self.dtype,
-            self.frames.device,
-            generator=self.rng,
-            latents=None,
-        )
+        if latent_path is None:
+            self.init_noise = self.pipe.prepare_latents(
+                self.frames.shape[0],
+                self.pipe.unet.config.in_channels,
+                self.frames.shape[2],
+                self.frames.shape[3],
+                self.dtype,
+                self.frames.device,
+                generator=self.rng,
+                latents=None,
+            )
+        else:
+            self.init_noise = load_latent(
+                latent_path, t=self.scheduler.timesteps[0], frame_ids=frame_ids).to(self.dtype).to(self.device)
 
         if self.use_depth:
             self.depths = prepare_depth(
@@ -230,7 +224,7 @@ class Generator(nn.Module):
         with torch.autocast(device_type=self.device, dtype=self.dtype):
             imgs = 2 * imgs - 1
             posterior = self.vae.encode(imgs).latent_dist
-            latents = posterior.mean * 0.18215
+            latents = posterior.mode() * 0.18215
         return latents
 
     @torch.no_grad()
@@ -415,12 +409,12 @@ class Generator(nn.Module):
     @torch.no_grad()
     def __call__(self, data_path, latent_path, output_path, frame_ids):
         self.scheduler.set_timesteps(self.n_timesteps)
-        # latent_path = get_latents_dir(latent_path, self.model_key)
-        # assert self.check_latent_exists(
-        #     latent_path), f"Required latent not found at {latent_path}. \
-        #             Note: If using PnP as control, you need inversion latents saved \
-        #              at each generation timestep."
-        latent_path = None
+        latent_path = get_latents_dir(latent_path, self.model_key)
+        latent_path = None if not self.check_latent_exists(latent_path) else latent_path
+        if latent_path is None:
+            print("[INFO] latent path not found. Generate new latents.")
+        else:
+            print(f"[INFO] latent path found at {latent_path}")
         
         self.data_path = data_path
         self.latent_path = latent_path
@@ -432,8 +426,9 @@ class Generator(nn.Module):
 
         for edit_name, edit_prompt in self.prompt.items():
             print(f"[INFO] current prompt: {edit_prompt}")
-            concat_conds = self.vae.encode(self.frames).latent_dist.mode() * self.vae.config.scaling_factor
-            conds, unconds = encode_prompt_pair(positive_prompt=edit_prompt, negative_prompt=self.negative_prompt)
+            # concat_conds = self.vae.encode(self.frames).latent_dist.mode() * self.vae.config.scaling_factor
+            concat_conds = self.encode_imgs_batch(self.frames)
+            conds, unconds = self.encode_prompt_pair(positive_prompt=edit_prompt, negative_prompt=self.negative_prompt)
 
             # rng = torch.Generator(device=device).manual_seed(int(self.seed))
             # clean_latent = self.pipe(
@@ -464,115 +459,3 @@ class Generator(nn.Module):
                 len(os.listdir(os.path.join(output_path, edit_name, "gt"))) != len(self.frames):
                 self.frames = (self.frames / 2 + 0.5).clamp(0, 1).to(device=clean_frames.device, dtype=clean_frames.dtype)
                 save_video(self.frames, os.path.join(output_path, edit_name), save_frame = self.save_frame, post_fix = "_gt")
-
-
-if __name__ == "__main__":
-    config = load_config()
-    # pipe, scheduler, model_key = init_model(
-    #     config.device, config.sd_version, config.model_key, config.generation.control, config.float_precision)
-    # manually change the pipe and scheduler
-    sd15_name = 'stablediffusionapi/realistic-vision-v51'
-    tokenizer = CLIPTokenizer.from_pretrained(sd15_name, subfolder="tokenizer")
-    text_encoder = CLIPTextModel.from_pretrained(sd15_name, subfolder="text_encoder")
-    vae = AutoencoderKL.from_pretrained(sd15_name, subfolder="vae")
-    unet = UNet2DConditionModel.from_pretrained(sd15_name, subfolder="unet")
-    rmbg = BriaRMBG.from_pretrained("briaai/RMBG-1.4")
-
-    # Change UNet
-
-    with torch.no_grad():
-        new_conv_in = torch.nn.Conv2d(8, unet.conv_in.out_channels, unet.conv_in.kernel_size, unet.conv_in.stride, unet.conv_in.padding)
-        new_conv_in.weight.zero_()
-        new_conv_in.weight[:, :4, :, :].copy_(unet.conv_in.weight)
-        new_conv_in.bias = unet.conv_in.bias
-        unet.conv_in = new_conv_in
-
-    unet_original_forward = unet.forward
-
-
-    def hooked_unet_forward(sample, timestep, encoder_hidden_states, **kwargs):
-        c_concat = kwargs['cross_attention_kwargs']['concat_conds'].to(sample)
-        c_concat = torch.cat([c_concat] * (sample.shape[0] // c_concat.shape[0]), dim=0)
-        new_sample = torch.cat([sample, c_concat], dim=1)
-        kwargs['cross_attention_kwargs'] = {}
-        return unet_original_forward(new_sample, timestep, encoder_hidden_states, **kwargs)
-
-
-    unet.forward = hooked_unet_forward
-
-    # Load
-
-    model_path = './models/iclight_sd15_fc.safetensors'
-
-    if not os.path.exists(model_path):
-        download_url_to_file(url='https://huggingface.co/lllyasviel/ic-light/resolve/main/iclight_sd15_fc.safetensors', dst=model_path)
-
-    sd_offset = sf.load_file(model_path)
-    sd_origin = unet.state_dict()
-    keys = sd_origin.keys()
-    sd_merged = {k: sd_origin[k] + sd_offset[k] for k in sd_origin.keys()}
-    unet.load_state_dict(sd_merged, strict=True)
-    del sd_offset, sd_origin, sd_merged, keys
-
-    # Device
-
-    device = torch.device('cuda')
-    text_encoder = text_encoder.to(device=device, dtype=torch.float16)
-    vae = vae.to(device=device, dtype=torch.bfloat16)
-    unet = unet.to(device=device, dtype=torch.float16)
-    rmbg = rmbg.to(device=device, dtype=torch.float32)
-
-    # SDP
-
-    unet.set_attn_processor(AttnProcessor2_0())
-    vae.set_attn_processor(AttnProcessor2_0())
-
-    # Samplers
-
-    scheduler = DDIMScheduler(
-        num_train_timesteps=1000,
-        beta_start=0.00085,
-        beta_end=0.012,
-        beta_schedule="scaled_linear",
-        clip_sample=False,
-        set_alpha_to_one=False,
-        steps_offset=1,
-    )
-
-    euler_a_scheduler = EulerAncestralDiscreteScheduler(
-        num_train_timesteps=1000,
-        beta_start=0.00085,
-        beta_end=0.012,
-        steps_offset=1
-    )
-
-    dpmpp_2m_sde_karras_scheduler = DPMSolverMultistepScheduler(
-        num_train_timesteps=1000,
-        beta_start=0.00085,
-        beta_end=0.012,
-        algorithm_type="sde-dpmsolver++",
-        use_karras_sigmas=True,
-        steps_offset=1
-    )
-
-    # Pipelines
-
-    pipe = StableDiffusionPipeline(
-        vae=vae,
-        text_encoder=text_encoder,
-        tokenizer=tokenizer,
-        unet=unet,
-        scheduler=dpmpp_2m_sde_karras_scheduler,
-        safety_checker=None,
-        requires_safety_checker=False,
-        feature_extractor=None,
-        image_encoder=None
-    )
- 
-    config.model_key = None
-    seed_everything(config.seed)
-    generator = Generator(vae, pipe, dpmpp_2m_sde_karras_scheduler, config)
-    frame_ids = get_frame_ids(
-        config.generation.frame_range, config.generation.frame_ids)
-    generator(config.input_path, config.generation.latents_path,
-              config.generation.output_path, frame_ids=frame_ids)
