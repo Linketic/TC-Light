@@ -2,6 +2,7 @@ import os
 import math
 import torch.nn as nn
 import torch
+import torch_scatter
 import numpy as np
 from tqdm import tqdm
 from transformers import logging
@@ -80,9 +81,17 @@ class Generator(nn.Module):
         self.global_rand = gene_config.global_rand
         self.align_batch = gene_config.align_batch
 
+        data_config = config.data
+        if  data_config.scene_type.lower() == "sceneflow":
+            from utils.dataparsers import SceneFlowDataParser
+            self.data_parser = SceneFlowDataParser(data_config, self.device)
+            config.input_path = self.data_parser.rgb_path
+        else:
+            raise NotImplementedError(f"Scene type {data_config.scene_type} is not supported.")
+
         for prompt_name in gene_config.prompt.keys():
             if gene_config.prompt[prompt_name] is None:
-                dialog = prepare_dialog(config.input_path)
+                dialog = prepare_dialog(self.data_parser.rgb_path)
                 prompt_upsampler = create_vlm_prompt_upsampler(
                     checkpoint_dir=gene_config.prompt_upsampler_ckpt,
                 )
@@ -95,7 +104,6 @@ class Generator(nn.Module):
         self.guidance_scale = gene_config.guidance_scale
         self.save_frame = gene_config.save_frame
 
-        self.frame_height, self.frame_width = config.height, config.width
         self.work_dir = config.work_dir
 
         self.chunk_ord = gene_config.chunk_ord
@@ -176,9 +184,8 @@ class Generator(nn.Module):
         return text_embeddings
 
     @torch.no_grad()
-    def prepare_data(self, data_path, latent_path, frame_ids):
-        self.frames = load_video(data_path, self.frame_height,
-                                 self.frame_width, frame_ids=frame_ids, device=self.device, base=8)
+    def prepare_data(self, latent_path, frame_ids):
+        self.frames = self.data_parser.load_video(frame_ids=frame_ids)
         if latent_path is None:
             self.init_noise = self.pipe.prepare_latents(
                 self.frames.shape[0],
@@ -201,6 +208,8 @@ class Generator(nn.Module):
         if self.use_controlnet:
             self.controlnet_images = prepare_control(
                 self.control, self.frames, frame_ids, self.work_dir).to(self.init_noise)
+        
+
 
     @torch.no_grad()
     def decode_latents(self, latents):
@@ -277,7 +286,8 @@ class Generator(nn.Module):
         noises = torch.zeros_like(x)
 
         for i, t in enumerate(tqdm(timesteps, desc="Sampling")):
-            self.pre_iter(x, t)
+
+            # x = self.pre_iter(x, t)
 
             # Split video into chunks and denoise
             chunks = self.get_chunks(len(x))
@@ -290,6 +300,9 @@ class Generator(nn.Module):
             x = self.scheduler.step(noises, t, x, generator=self.rng, return_dict=False)[0]
 
             self.post_iter(x, t)
+
+        x = self.pre_iter(x, t)
+
         return x
 
     def pre_iter(self, x, t):
@@ -298,11 +311,22 @@ class Generator(nn.Module):
             register_time(self, t.item())
             cur_latents = load_latent(self.latent_path, t=t, frame_ids = self.frame_ids)
             self.cur_latents = cur_latents
+        
+        # Note t decreases from num_train_timesteps to 0
+        # if t < self.scheduler.config.num_train_timesteps * 0:
+        N, _, H, W = self.frames.shape
+        decoded_x = self.decode_latents_batch(x).permute(0, 2, 3, 1).reshape(N*H*W, -1)
+        decoded_x = torch_scatter.scatter(decoded_x, self.data_parser.unq_inv, dim=0, reduce='mean')
+        decoded_x = decoded_x[self.data_parser.unq_inv].reshape(N, H, W, -1).permute(0, 3, 1, 2)
+        x = self.encode_imgs_batch(decoded_x)
+        
+        return x
 
     def post_iter(self, x, t):
-        if self.merge_global:
-            # Reset global tokens
-            vidtome.update_patch(self.pipe, global_tokens = None)
+        pass
+        # if self.merge_global:
+        #     # Reset global tokens
+        #     vidtome.update_patch(self.pipe, global_tokens = None)
 
     @torch.no_grad()
     def pred_noise(self, x, cond, t, concat_conds, batch_idx=None):
@@ -416,10 +440,9 @@ class Generator(nn.Module):
         else:
             print(f"[INFO] latent path found at {latent_path}")
         
-        self.data_path = data_path
         self.latent_path = latent_path
         self.frame_ids = frame_ids
-        self.prepare_data(data_path, latent_path, frame_ids)
+        self.prepare_data(latent_path, frame_ids)
 
         print(f"[INFO] initial noise latent shape: {self.init_noise.shape}")
         self.frames = self.frames.to(device=self.vae.device, dtype=self.vae.dtype)
@@ -459,5 +482,5 @@ class Generator(nn.Module):
 
             if not os.path.exists(os.path.join(output_path, save_name, "gt")) or \
                 len(os.listdir(os.path.join(output_path, edit_name, "gt"))) != len(self.frames):
-                self.frames = (self.frames / 2 + 0.5).clamp(0, 1).to(device=clean_frames.device, dtype=clean_frames.dtype)
+                self.frames = self.frames.to(device=clean_frames.device, dtype=clean_frames.dtype)
                 save_video(self.frames, os.path.join(output_path, save_name), save_frame=False, post_fix = "_gt")
