@@ -19,7 +19,8 @@ from briarmbg import BriaRMBG
 from plugin.VidToMe.utils import load_config, get_frame_ids, seed_everything
 
 from invert import Inverter
-from generate_geom import Generator
+from generate import Generator
+# from generate_geom import Generator
 
 
 if __name__ == "__main__":
@@ -85,6 +86,23 @@ if __name__ == "__main__":
 
     # Samplers
 
+    scheduler = DDIMScheduler(
+        num_train_timesteps=1000,
+        beta_start=0.00085,
+        beta_end=0.012,
+        beta_schedule="scaled_linear",
+        clip_sample=False,
+        set_alpha_to_one=False,
+        steps_offset=1,
+    )
+
+    euler_a_scheduler = EulerAncestralDiscreteScheduler(
+        num_train_timesteps=1000,
+        beta_start=0.00085,
+        beta_end=0.012,
+        steps_offset=1
+    )
+
     dpmpp_2m_sde_karras_scheduler = DPMSolverMultistepScheduler(
         num_train_timesteps=1000,
         beta_start=0.00085,
@@ -94,6 +112,16 @@ if __name__ == "__main__":
         steps_offset=1
     )
 
+    # inverse sampler
+    # dpmpp_2m_sde_karras_scheduler_inv = DPMSolverMultistepInverseScheduler(
+    #     num_train_timesteps=1000,
+    #     beta_start=0.00085,
+    #     beta_end=0.012,
+    #     algorithm_type="sde-dpmsolver++",
+    #     use_karras_sigmas=True,
+    #     steps_offset=1
+    # )
+
     # Pipelines
 
     pipe = StableDiffusionPipeline(
@@ -101,7 +129,7 @@ if __name__ == "__main__":
         text_encoder=text_encoder,
         tokenizer=tokenizer,
         unet=unet,
-        scheduler=dpmpp_2m_sde_karras_scheduler,
+        scheduler=scheduler,
         safety_checker=None,
         requires_safety_checker=False,
         feature_extractor=None,
@@ -111,13 +139,13 @@ if __name__ == "__main__":
     config.model_key = None
     seed_everything(config.seed)
 
-    # inversion = Inverter(vae, pipe, dpmpp_2m_sde_karras_scheduler_inv, config)
-    # inversion(config.input_path, config.inversion.save_path)
+    inversion = Inverter(vae, pipe, scheduler, config)
+    inversion(config.input_path, config.inversion.save_path)
 
     frame_ids = get_frame_ids(
         config.generation.frame_range, config.generation.frame_ids)
     config.total_number_of_frames = len(frame_ids)
 
-    generator = Generator(vae, pipe, dpmpp_2m_sde_karras_scheduler, config)
+    generator = Generator(vae, pipe, scheduler, config)
     generator(config.input_path, config.generation.latents_path,
               config.generation.output_path, frame_ids=frame_ids)

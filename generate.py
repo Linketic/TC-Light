@@ -286,8 +286,8 @@ class Generator(nn.Module):
                 noises[chunk] = self.pred_noise(
                     x[chunk], conds, t, concat_conds[chunk], batch_idx=chunk)
 
-            # x = self.pred_next_x(x, noises, t, i, inversion=False)
-            x = self.scheduler.step(noises, t, x, generator=self.rng, return_dict=False)[0]
+            x = self.pred_next_x(x, noises, t, i, inversion=False)
+            # x = self.scheduler.step(noises, t, x, generator=self.rng, return_dict=False)[0]
 
             self.post_iter(x, t)
         return x

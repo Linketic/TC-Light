@@ -170,7 +170,7 @@ class Inverter(nn.Module):
     @torch.no_grad()
     def ddim_inversion(self, x, conds, save_path):
         print("[INFO] start DDIM Inversion!")
-        timesteps = self.scheduler.timesteps
+        timesteps = reversed(self.scheduler.timesteps)
         with torch.autocast(device_type=self.device, dtype=self.dtype):
             for i, t in enumerate(tqdm(timesteps)):
                 noises = []
@@ -182,9 +182,9 @@ class Inverter(nn.Module):
                     noises += [noise]
                 noises = torch.cat(noises)
                 
-                x = self.scheduler.step(noises, t, x, generator=self.rng, return_dict=False)[0]
-                
-                # x = self.pred_next_x(x, noises, t, i, inversion=True)
+                # x = self.scheduler.step(noises, t, x, generator=self.rng, return_dict=False)[0]
+                x = self.pred_next_x(x, noises, t, i, inversion=True)
+
                 if self.save_latents and t in self.timesteps_to_save:
                     torch.save(x, os.path.join(
                         save_path, f'noisy_latents_{t}.pt'))
