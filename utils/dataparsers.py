@@ -302,6 +302,7 @@ class SceneFlowDataParser:
         self.h, self.w = data_config.height, data_config.width
         self.device = device
         self.unq_inv = None
+        self.flows = None
 
         assert self.stereo_sel in ['left', 'right'], "stereo_sel must be either 'left' or 'right'"
         assert self.scene_path.split('/')[0] in ['15mm_focallength', '35mm_focallength'], "scene_path must be either '15mm_focallength' or '35mm_focallength'"
@@ -310,6 +311,7 @@ class SceneFlowDataParser:
 
         self.rgb_path = os.path.join(self.data_dir, "frames_cleanpass", self.scene_path, self.stereo_sel)
         self.disparity_path = os.path.join(self.data_dir, "disparity", self.scene_path, self.stereo_sel)
+        self.future_flow_path = os.path.join(self.data_dir, "optical_flow", self.scene_path, "into_future", self.stereo_sel)
 
         if "15mm" in self.scene_path:
             self.intrinsics = np.array([[450.0, 0.0, 479.5], [0.0, 450.0, 269.5], [0.0, 0.0, 1.0]])
@@ -351,6 +353,32 @@ class SceneFlowDataParser:
                                     rgb_world.permute(0, 2, 3, 1).reshape(N, -1, 3), voxel_size)
 
         return rgb_world
+    
+    def load_video_flow(self, frame_ids=None):
+        rgbs, flows = [], []
+        for i in tqdm(range(len(self.cam_info)), desc="Loading Data"):
+            rgb = read(os.path.join(self.rgb_path, "{:04d}.png".format(self.cam_info[i]["frame_id"])))
+            optical_flow_future = read(os.path.join(self.future_flow_path, "OpticalFlowIntoFuture_{:04d}_L.pfm".format(self.cam_info[i]["frame_id"])))
+
+            rgbs.append(torch.tensor(rgb, dtype=torch.float32, device=self.device).permute(2, 0, 1))
+            flows.append(torch.tensor(optical_flow_future.copy(), dtype=torch.float32, device=self.device).permute(2, 0, 1))
+        
+        rgbs = torch.stack(rgbs, dim=0) / 255.0
+        flows = torch.stack(flows, dim=0)
+        if frame_ids is not None:
+            rgbs = rgbs[frame_ids]
+            flows = flows[frame_ids]
+        
+        N, _, H, W = rgbs.shape
+        flows = process_frames(flows, self.h, self.w)  # Shape: (N, 3, h, w)
+        rgbs = process_frames(rgbs, self.h, self.w)  # Shape: (N, 3, h, w)
+
+        scale_factor = max(self.w / W, self.h / H)
+        flows *= scale_factor
+
+        self.flows = flows
+
+        return rgbs
 
 
 

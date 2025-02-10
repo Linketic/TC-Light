@@ -184,8 +184,12 @@ class Generator(nn.Module):
         return text_embeddings
 
     @torch.no_grad()
-    def prepare_data(self, latent_path, frame_ids):
-        self.frames = self.data_parser.load_video(frame_ids=frame_ids)
+    def prepare_data(self, latent_path, frame_ids, apply_unq_inv):
+        if apply_unq_inv:
+            self.frames = self.data_parser.load_video(frame_ids=frame_ids)
+        else:
+            self.frames = self.data_parser.load_video_flow(frame_ids=frame_ids)
+        
         if latent_path is None:
             self.init_noise = self.pipe.prepare_latents(
                 self.frames.shape[0],
@@ -301,7 +305,7 @@ class Generator(nn.Module):
 
             self.post_iter(x, t)
 
-        x = self.pre_iter(x, t)
+        # x = self.pre_iter(x, t)
 
         return x
 
@@ -431,7 +435,7 @@ class Generator(nn.Module):
         return True
 
     @torch.no_grad()
-    def __call__(self, data_path, latent_path, output_path, frame_ids):
+    def __call__(self, data_path, latent_path, output_path, frame_ids, unet_bg=None):
         self.scheduler.set_timesteps(self.n_timesteps)
         latent_path = get_latents_dir(latent_path, self.model_key)
         latent_path = None if not self.check_latent_exists(latent_path) else latent_path
@@ -442,7 +446,7 @@ class Generator(nn.Module):
         
         self.latent_path = latent_path
         self.frame_ids = frame_ids
-        self.prepare_data(latent_path, frame_ids)
+        self.prepare_data(latent_path, frame_ids, apply_unq_inv=unet_bg is None)
 
         print(f"[INFO] initial noise latent shape: {self.init_noise.shape}")
         self.frames = self.frames.to(device=self.vae.device, dtype=self.vae.dtype)
@@ -452,6 +456,67 @@ class Generator(nn.Module):
             # concat_conds = self.vae.encode(self.frames).latent_dist.mode() * self.vae.config.scaling_factor
             concat_conds = self.encode_imgs_batch(self.frames)
             conds, unconds = self.encode_prompt_pair(positive_prompt=edit_prompt, negative_prompt=self.negative_prompt)
+
+            if unet_bg is None:
+                prompt_embeds = torch.cat([unconds, conds])
+                # Comment this if you have enough GPU memory
+                clean_latent = self.ddim_sample(self.init_noise, prompt_embeds, concat_conds)  
+                torch.cuda.empty_cache()
+                clean_frames = self.decode_latents_batch(clean_latent)
+            else:
+                frames_list = []
+                rng = torch.Generator(device=self.device).manual_seed(int(self.seed))
+                latent = self.pipe(
+                    prompt_embeds=conds,
+                    negative_prompt_embeds=unconds,
+                    width=self.frames.shape[3],
+                    height=self.frames.shape[2],
+                    num_inference_steps=self.n_timesteps,
+                    num_images_per_prompt=1,
+                    generator=rng,
+                    output_type='latent',
+                    guidance_scale=self.guidance_scale,
+                    cross_attention_kwargs={'concat_conds': concat_conds[0:1]},
+                ).images.to(self.vae.dtype)
+                pre_frame = self.decode_latents_batch(latent)
+                frames_list.append(pre_frame)
+
+                # replace the network
+                self.pipe.unet = unet_bg
+                self.unet = self.pipe.unet
+                pre_y, pre_x = torch.meshgrid(torch.arange(pre_frame.shape[2]), torch.arange(pre_frame.shape[3]))
+                pre_y = pre_y.to(device=self.device)
+                pre_x = pre_x.to(device=self.device)
+
+                for i in range(1, self.frames.shape[0]):
+                    rng = torch.Generator(device=self.device).manual_seed(int(self.seed))
+                    bg = pre_frame
+                    x = (pre_x + self.data_parser.flows[i-1, 0]).to(torch.int64)
+                    y = (pre_y + self.data_parser.flows[i-1, 1]).to(torch.int64)
+                    mask = (x >= 0) & (x < bg.shape[3]) & (y >= 0) & (y < bg.shape[2])
+                    # bg[..., y[mask], x[mask]] = pre_frame[..., pre_y[mask], pre_x[mask]]
+                    fg = self.frames[i:i+1].clone()
+                    fg[..., y[mask], x[mask]] = 0.5
+                    concat_conds = self.encode_imgs_batch(torch.concat([fg, bg], dim=0))
+                    concat_conds = torch.cat([c[None, ...] for c in concat_conds], dim=1)
+
+                    latent = self.pipe(
+                        prompt_embeds=conds,
+                        negative_prompt_embeds=unconds,
+                        width=self.frames.shape[3],
+                        height=self.frames.shape[2],
+                        num_inference_steps=self.n_timesteps,
+                        num_images_per_prompt=1,
+                        generator=rng,
+                        output_type='latent',
+                        guidance_scale=self.guidance_scale,
+                        cross_attention_kwargs={'concat_conds': concat_conds},
+                    ).images.to(self.vae.dtype)
+                    
+                    pre_frame = self.decode_latents_batch(latent)
+                    frames_list.append(pre_frame)
+
+                clean_frames = torch.cat(frames_list)
 
             # rng = torch.Generator(device=device).manual_seed(int(self.seed))
             # clean_latent = self.pipe(
@@ -467,12 +532,6 @@ class Generator(nn.Module):
             #     cross_attention_kwargs={'concat_conds': concat_conds},
             # ).images.to(vae.dtype)
             # clean_frames = self.decode_latents_batch(clean_latent)
-
-            prompt_embeds = torch.cat([unconds, conds])
-            # Comment this if you have enough GPU memory
-            clean_latent = self.ddim_sample(self.init_noise, prompt_embeds, concat_conds)  
-            torch.cuda.empty_cache()
-            clean_frames = self.decode_latents_batch(clean_latent)
 
             save_name = f"{edit_name}_lmr_{self.local_merge_ratio}_gmr_{self.global_merge_ratio}"
             
