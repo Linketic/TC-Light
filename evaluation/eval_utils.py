@@ -289,16 +289,16 @@ def SaveWarpingImage(edit_pil_list, source_pil_list, raft_model, device, distanc
         # print(f'Idx {idx}: {ssim}')
         ssim_list.append(ssim)
 
-        warped_frame = cv2.cvtColor(warped_frame, cv2.COLOR_BGR2RGB)
-        pil_next_img = cv2.cvtColor(pil_next_img, cv2.COLOR_BGR2RGB)
+        # warped_frame = cv2.cvtColor(warped_frame, cv2.COLOR_BGR2RGB)
+        # pil_next_img = cv2.cvtColor(pil_next_img, cv2.COLOR_BGR2RGB)
 
-        import os
-        if not os.path.exists('warped'):
-            os.makedirs('warped')
-        if not os.path.exists('warped_gt'):
-            os.makedirs('warped_gt')s
+        # import os
+        # if not os.path.exists('warped'):
+        #     os.makedirs('warped')
+        # if not os.path.exists('warped_gt'):
+        #     os.makedirs('warped_gt')
         
-        cv2.imwrite(os.path.join('warped', f'{idx}.png'), warped_frame)
-        cv2.imwrite(os.path.join('warped_gt', f'{idx}.png'), pil_next_img)
+        # cv2.imwrite(os.path.join('warped', f'{idx}.png'), warped_frame)
+        # cv2.imwrite(os.path.join('warped_gt', f'{idx}.png'), pil_next_img)
 
     return np.mean(ssim_list)
