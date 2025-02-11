@@ -1,5 +1,6 @@
 import os
 import math
+import datetime
 import torch.nn as nn
 import torch
 import torch_scatter
@@ -453,6 +454,9 @@ class Generator(nn.Module):
         for edit_name, edit_prompt in self.prompt.items():
             print(f"[INFO] current prompt: {edit_prompt}")
             # concat_conds = self.vae.encode(self.frames).latent_dist.mode() * self.vae.config.scaling_factor
+            torch.cuda.reset_peak_memory_stats()
+            start_time = datetime.datetime.now()
+
             concat_conds = self.encode_imgs_batch(self.frames)
             conds, unconds = self.encode_prompt_pair(positive_prompt=edit_prompt, negative_prompt=self.negative_prompt)
 
@@ -516,6 +520,12 @@ class Generator(nn.Module):
                     frames_list.append(pre_frame)
 
                 clean_frames = torch.cat(frames_list)
+
+            end_time = datetime.datetime.now()
+            max_memory_allocated = torch.cuda.max_memory_allocated() / (1024.0 ** 2)
+            self.config.max_memory_allocated = max_memory_allocated
+            self.config.total_time = (end_time - start_time).total_seconds()
+            self.config.sec_per_frame = self.config.total_time / len(frame_ids)
 
             # rng = torch.Generator(device=device).manual_seed(int(self.seed))
             # clean_latent = self.pipe(

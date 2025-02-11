@@ -15,6 +15,19 @@ from core.raft import RAFT
 from core.utils.utils import InputPadder
 from skimage.metrics import structural_similarity
 
+def get_frame_ids(frame_range, frame_ids=None):
+    if frame_ids is None:
+        frame_ids = list(range(*frame_range))
+    frame_ids = sorted(frame_ids)
+
+    if len(frame_ids) > 4:
+        frame_ids_str = "{} {} ... {} {}".format(
+            *frame_ids[:2], *frame_ids[-2:])
+    else:
+        frame_ids_str = " ".join(["{}"] * len(frame_ids)).format(*frame_ids)
+    print("[INFO] frame indexes: ", frame_ids_str)
+    return frame_ids
+
 def video_to_pil_list(video_path):
     if video_path.endswith('.mp4'):
         vidcap = cv2.VideoCapture(video_path)
@@ -222,7 +235,7 @@ def compute_fwdbwd_mask(fwd_flow, bwd_flow):
     )
     return fwd_mask, bwd_mask
 
-def SaveWarpingImage(edit_pil_list, source_pil_list, raft_model, device, distance_func):
+def SaveWarpingImage(edit_pil_list, source_pil_list, raft_model, device, distance_func, flow_fwd_list=None, flow_bwd_list=None):
 
     img_w, img_h = edit_pil_list[0].size
 
@@ -240,8 +253,12 @@ def SaveWarpingImage(edit_pil_list, source_pil_list, raft_model, device, distanc
         gt, gt_next = padder.pad(gt, gt_next)
         pil_img, pil_next_img = padder.pad(pil_img, pil_next_img)
 
-        _, flow_fwd = raft_model(gt, gt_next, iters=20, test_mode=True)
-        _, flow_bwd = raft_model(gt_next, gt, iters=20, test_mode=True)
+        if flow_fwd_list is None or flow_bwd_list is None:
+            _, flow_fwd = raft_model(gt, gt_next, iters=20, test_mode=True)
+            _, flow_bwd = raft_model(gt_next, gt, iters=20, test_mode=True)
+        else:
+            flow_fwd = flow_fwd_list[idx:idx+1, :2]
+            flow_bwd = flow_bwd_list[idx:idx+1, :2]
         flow_fwd = padder.unpad(flow_fwd[0]).detach().cpu().numpy().transpose(1, 2, 0)
         flow_bwd = padder.unpad(flow_bwd[0]).detach().cpu().numpy().transpose(1, 2, 0)
 
@@ -272,16 +289,16 @@ def SaveWarpingImage(edit_pil_list, source_pil_list, raft_model, device, distanc
         # print(f'Idx {idx}: {ssim}')
         ssim_list.append(ssim)
 
-        # warped_frame = cv2.cvtColor(warped_frame, cv2.COLOR_BGR2RGB)
-        # pil_next_img = cv2.cvtColor(pil_next_img, cv2.COLOR_BGR2RGB)
+        warped_frame = cv2.cvtColor(warped_frame, cv2.COLOR_BGR2RGB)
+        pil_next_img = cv2.cvtColor(pil_next_img, cv2.COLOR_BGR2RGB)
 
-        # import os
-        # if not os.path.exists('warped'):
-        #     os.makedirs('warped')
-        # if not os.path.exists('warped_gt'):
-        #     os.makedirs('warped_gt')
+        import os
+        if not os.path.exists('warped'):
+            os.makedirs('warped')
+        if not os.path.exists('warped_gt'):
+            os.makedirs('warped_gt')s
         
-        # cv2.imwrite(os.path.join('warped', f'{idx}.png'), warped_frame)
-        # cv2.imwrite(os.path.join('warped_gt', f'{idx}.png'), pil_next_img)
+        cv2.imwrite(os.path.join('warped', f'{idx}.png'), warped_frame)
+        cv2.imwrite(os.path.join('warped_gt', f'{idx}.png'), pil_next_img)
 
     return np.mean(ssim_list)

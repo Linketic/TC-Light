@@ -10,7 +10,7 @@ import glob
 import argparse
 import numpy as np
 
-
+from omegaconf import OmegaConf, DictConfig
 from collections import defaultdict
 from transformers import AutoProcessor, AutoModel
 
@@ -29,16 +29,30 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--output_dir', type=str, default='/data1/yang_liu/python_workspace/IC-Light/workdir/realistic')
-    parser.add_argument('--prepare', type=bool, default=False)
-    parser.add_argument('--eval_cost', type=bool, default=False)
+    parser.add_argument('--eval_cost', action='store_true')
     args = parser.parse_args()
 
     st = 50
-    prepare = args.prepare
     eval_cost = args.eval_cost
     output_dir = args.output_dir
 
     config_dict = yaml_load(os.path.join(output_dir, 'config.yaml'))
+
+    try:
+        config = OmegaConf.load(os.path.join(output_dir, 'config.yaml'))
+        if config.data.scene_type.lower() == "sceneflow":
+            sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+            from utils.dataparsers import SceneFlowDataParser
+            data_parser = SceneFlowDataParser(config.data, config.device)
+            data_parser.load_video_flow(eu.get_frame_ids(config.generation.frame_range, config.generation.frame_ids), past_flow=True);
+            flow_fwd_list = data_parser.flows
+            flow_bwd_list = data_parser.past_flows
+            print(f"Loaded optical flow from {config.data.scene_type}")
+        else:
+            raise NotImplementedError(f"Scene type {config.data.scene_type} is not supported.")
+    except:
+        flow_fwd_list=None
+        flow_bwd_list=None
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model, preprocess = clip.load("ViT-B/32", device=device)
@@ -86,30 +100,23 @@ if __name__ == '__main__':
                         print(f'Error in clip-text for {video_name} - {prompt}')
                     
                     scores['pick-score'] = eu.pick_score_func(pil_list, prompt, pick_model, pick_processor, device)
-                    if k == 'rerender':
-                        # scores['warp-error-l1'] = eu.warp_video(pil_list, source_pil_list[1:-1], raft_model, device, l2_norm)
-                        # scores['warp-error-l2'] = eu.warp_video(pil_list, source_pil_list[1:-1], raft_model, device, l1_norm)
-                        scores['warp-error-ssim'] = eu.warp_video(pil_list, source_pil_list[1:-1], raft_model, device, structural_similarity)
-                    else:
-                        # scores['warp-error-l1'] = eu.warp_video(pil_list, source_pil_list, raft_model, device, l2_norm)
-                        # scores['warp-error-l2'] = eu.warp_video(pil_list, source_pil_list, raft_model, device, l1_norm)
-                        scores['warp-error-ssim'] = eu.SaveWarpingImage(pil_list, source_pil_list, raft_model, device, structural_similarity)
+                    
+                    scores['warp-error-ssim'] = eu.SaveWarpingImage(pil_list, source_pil_list, raft_model, device, 
+                                                                    structural_similarity, flow_fwd_list, flow_bwd_list)
                     # print(f'{video_name} - {prompt} - {k} - ', end='\n')
 
                     if eval_cost:
                         config_path = f'{output_dir}/{video_name}/{prompt}/config.yaml'
-                        with open(config_path, 'r') as cf:
-                            config = yaml.load(cf, Loader=yaml.FullLoader)
                         # z to move the cost to the end of the dictionary
                         
-                        if 'sec_per_frame' in config.keys():
-                            scores['z_fps'] = 1 / config['sec_per_frame']
+                        if 'sec_per_frame' in config_dict.keys():
+                            scores['z_fps'] = 1 / config_dict['sec_per_frame']
                         else:
-                            scores['z_fps'] = config['frame_per_sec']
-                        scores['z_max_memory_allocated'] = config['max_memory_allocated']
+                            scores['z_fps'] = config_dict['frame_per_sec']
+                        scores['z_max_memory_allocated'] = config_dict['max_memory_allocated']
                         scores['z_resolution'] = np.sqrt(pil_list[0].size[0]*pil_list[0].size[1])
-                        scores['z_total_frames'] = config['total_number_of_frames']
-                        scores['z_total_time'] = config['total_time']
+                        scores['z_total_frames'] = int(config_dict['total_number_of_frames'])
+                        scores['z_total_time'] = config_dict['total_time']
 
                 main_dict[k][video_name][prompt] = scores.copy()
         

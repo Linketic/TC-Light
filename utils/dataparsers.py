@@ -312,6 +312,7 @@ class SceneFlowDataParser:
         self.rgb_path = os.path.join(self.data_dir, "frames_cleanpass", self.scene_path, self.stereo_sel)
         self.disparity_path = os.path.join(self.data_dir, "disparity", self.scene_path, self.stereo_sel)
         self.future_flow_path = os.path.join(self.data_dir, "optical_flow", self.scene_path, "into_future", self.stereo_sel)
+        self.past_flow_path = os.path.join(self.data_dir, "optical_flow", self.scene_path, "into_past", self.stereo_sel)
 
         if "15mm" in self.scene_path:
             self.intrinsics = np.array([[450.0, 0.0, 479.5], [0.0, 450.0, 269.5], [0.0, 0.0, 1.0]])
@@ -323,22 +324,19 @@ class SceneFlowDataParser:
     def load_video(self, frame_ids=None):
         rgbs, depths, c2ws = [], [], []
         for i in tqdm(range(len(self.cam_info)), desc="Loading Data"):
-            rgb = read(os.path.join(self.rgb_path, "{:04d}.png".format(self.cam_info[i]["frame_id"])))
-            disparity = read(os.path.join(self.disparity_path, "{:04d}.pfm".format(self.cam_info[i]["frame_id"])))
-            depth = (self.intrinsics[0, 0]* 1.0 / disparity)
-            c2w = self.cam_info[i][self.stereo_sel]
+            if i in frame_ids:
+                rgb = read(os.path.join(self.rgb_path, "{:04d}.png".format(self.cam_info[i]["frame_id"])))
+                disparity = read(os.path.join(self.disparity_path, "{:04d}.pfm".format(self.cam_info[i]["frame_id"])))
+                depth = (self.intrinsics[0, 0]* 1.0 / disparity)
+                c2w = self.cam_info[i][self.stereo_sel]
 
-            rgbs.append(torch.tensor(rgb, dtype=torch.float32, device=self.device).permute(2, 0, 1))
-            depths.append(torch.tensor(depth[None], dtype=torch.float32, device=self.device))
-            c2ws.append(torch.tensor(c2w, dtype=torch.float32, device=self.device))
+                rgbs.append(torch.tensor(rgb, dtype=torch.float32, device=self.device).permute(2, 0, 1))
+                depths.append(torch.tensor(depth[None], dtype=torch.float32, device=self.device))
+                c2ws.append(torch.tensor(c2w, dtype=torch.float32, device=self.device))
         
         rgbs = torch.stack(rgbs, dim=0) / 255.0
         depths = torch.stack(depths, dim=0)
         c2ws = torch.stack(c2ws, dim=0)
-        if frame_ids is not None:
-            rgbs = rgbs[frame_ids]
-            depths = depths[frame_ids]
-            c2ws = c2ws[frame_ids]
         N, _, H, W = rgbs.shape
 
         # Assuming rgb is of shape (N, 3, H, W), depth is of shape (N, 1, H, W), and c2w is of shape (N, 4, 4)
@@ -354,20 +352,22 @@ class SceneFlowDataParser:
 
         return rgb_world
     
-    def load_video_flow(self, frame_ids=None):
-        rgbs, flows = [], []
+    def load_video_flow(self, frame_ids=None, past_flow=False):
+        rgbs, flows, past_flows = [], [], []
         for i in tqdm(range(len(self.cam_info)), desc="Loading Data"):
-            rgb = read(os.path.join(self.rgb_path, "{:04d}.png".format(self.cam_info[i]["frame_id"])))
-            optical_flow_future = read(os.path.join(self.future_flow_path, "OpticalFlowIntoFuture_{:04d}_L.pfm".format(self.cam_info[i]["frame_id"])))
+            if i in frame_ids:
+                rgb = read(os.path.join(self.rgb_path, "{:04d}.png".format(self.cam_info[i]["frame_id"])))
+                optical_flow_future = read(os.path.join(self.future_flow_path, "OpticalFlowIntoFuture_{:04d}_L.pfm".format(self.cam_info[i]["frame_id"])))
 
-            rgbs.append(torch.tensor(rgb, dtype=torch.float32, device=self.device).permute(2, 0, 1))
-            flows.append(torch.tensor(optical_flow_future.copy(), dtype=torch.float32, device=self.device).permute(2, 0, 1))
-        
+                rgbs.append(torch.tensor(rgb, dtype=torch.float32, device=self.device).permute(2, 0, 1))
+                flows.append(torch.tensor(optical_flow_future.copy(), dtype=torch.float32, device=self.device).permute(2, 0, 1))
+
+                if past_flow:
+                    optical_flow_past = read(os.path.join(self.past_flow_path, "OpticalFlowIntoPast_{:04d}_L.pfm".format(self.cam_info[i]["frame_id"])))
+                    past_flows.append(torch.tensor(optical_flow_past.copy(), dtype=torch.float32, device=self.device).permute(2, 0, 1))
+            
         rgbs = torch.stack(rgbs, dim=0) / 255.0
         flows = torch.stack(flows, dim=0)
-        if frame_ids is not None:
-            rgbs = rgbs[frame_ids]
-            flows = flows[frame_ids]
         
         N, _, H, W = rgbs.shape
         flows = process_frames(flows, self.h, self.w)  # Shape: (N, 3, h, w)
@@ -377,6 +377,14 @@ class SceneFlowDataParser:
         flows *= scale_factor
 
         self.flows = flows
+
+        if past_flow:
+            past_flows = torch.stack(past_flows, dim=0)
+            past_flows = process_frames(past_flows, self.h, self.w)
+            past_flows *= scale_factor
+            self.past_flows = past_flows
+        else:
+            self.past_flows = None
 
         return rgbs
 
