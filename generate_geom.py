@@ -80,6 +80,7 @@ class Generator(nn.Module):
         self.global_merge_ratio = gene_config.global_merge_ratio
         self.global_rand = gene_config.global_rand
         self.align_batch = gene_config.align_batch
+        self.vox_ratio = gene_config.vox_ratio
 
         data_config = config.data
         if  data_config.scene_type.lower() == "sceneflow":
@@ -291,7 +292,7 @@ class Generator(nn.Module):
 
         for i, t in enumerate(tqdm(timesteps, desc="Sampling")):
 
-            # x = self.pre_iter(x, t)
+            x = self.pre_iter(x, t)
 
             # Split video into chunks and denoise
             chunks = self.get_chunks(len(x))
@@ -305,8 +306,6 @@ class Generator(nn.Module):
 
             self.post_iter(x, t)
 
-        # x = self.pre_iter(x, t)
-
         return x
 
     def pre_iter(self, x, t):
@@ -317,12 +316,12 @@ class Generator(nn.Module):
             self.cur_latents = cur_latents
         
         # Note t decreases from num_train_timesteps to 0
-        # if t < self.scheduler.config.num_train_timesteps * 0:
-        N, _, H, W = self.frames.shape
-        decoded_x = self.decode_latents_batch(x).permute(0, 2, 3, 1).reshape(N*H*W, -1)
-        decoded_x = torch_scatter.scatter(decoded_x, self.data_parser.unq_inv, dim=0, reduce='mean')
-        decoded_x = decoded_x[self.data_parser.unq_inv].reshape(N, H, W, -1).permute(0, 3, 1, 2)
-        x = self.encode_imgs_batch(decoded_x)
+        if t < self.scheduler.config.num_train_timesteps * self.vox_ratio:
+            N, _, H, W = self.frames.shape
+            decoded_x = self.decode_latents_batch(x).permute(0, 2, 3, 1).reshape(N*H*W, -1)
+            decoded_x = torch_scatter.scatter(decoded_x, self.data_parser.unq_inv, dim=0, reduce='mean')
+            decoded_x = decoded_x[self.data_parser.unq_inv].reshape(N, H, W, -1).permute(0, 3, 1, 2)
+            x = self.encode_imgs_batch(decoded_x)
         
         return x
 
