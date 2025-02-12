@@ -9,8 +9,8 @@ import torch
 import clip
 import warnings
 import numpy as np
-sys.path.append('/coc/flash6/okara7/codes/video-editing/hf-controlnet/RAFT/RAFT-master')
-sys.path.append('/coc/flash6/okara7/codes/video-editing/hf-controlnet/RAFT/RAFT-master/core')
+import os
+sys.path.append('/data1/yang_liu/python_workspace/IC-Light/evaluation')  # TODO: change to a robust relative path
 from core.raft import RAFT
 from core.utils.utils import InputPadder
 from skimage.metrics import structural_similarity
@@ -258,7 +258,7 @@ def SaveWarpingImage(edit_pil_list, source_pil_list, raft_model, device, distanc
             _, flow_bwd = raft_model(gt_next, gt, iters=20, test_mode=True)
         else:
             flow_fwd = flow_fwd_list[idx:idx+1, :2]
-            flow_bwd = flow_bwd_list[idx:idx+1, :2]
+            flow_bwd = flow_bwd_list[idx+1:idx+2, :2]
         flow_fwd = padder.unpad(flow_fwd[0]).detach().cpu().numpy().transpose(1, 2, 0)
         flow_bwd = padder.unpad(flow_bwd[0]).detach().cpu().numpy().transpose(1, 2, 0)
 
