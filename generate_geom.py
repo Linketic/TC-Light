@@ -187,10 +187,7 @@ class Generator(nn.Module):
 
     @torch.no_grad()
     def prepare_data(self, latent_path, frame_ids, apply_unq_inv):
-        if apply_unq_inv:
-            self.frames = self.data_parser.load_video(frame_ids=frame_ids)
-        else:
-            self.frames = self.data_parser.load_video_flow(frame_ids=frame_ids)
+        self.frames, _ = self.data_parser.load_video(frame_ids=frame_ids)
         
         if latent_path is None:
             self.init_noise = self.pipe.prepare_latents(
@@ -464,8 +461,13 @@ class Generator(nn.Module):
                 prompt_embeds = torch.cat([unconds, conds])
                 # Comment this if you have enough GPU memory
                 clean_latent = self.ddim_sample(self.init_noise, prompt_embeds, concat_conds)  
-                torch.cuda.empty_cache()
                 clean_frames = self.decode_latents_batch(clean_latent)
+
+                N, _, H, W = clean_frames.shape
+                clean_frames = clean_frames.permute(0, 2, 3, 1).reshape(N*H*W, -1)
+                clean_frames = torch_scatter.scatter(clean_frames, self.data_parser.unq_inv, dim=0, reduce='mean')
+                clean_frames = clean_frames[self.data_parser.unq_inv].reshape(N, H, W, -1).permute(0, 3, 1, 2)
+                torch.cuda.empty_cache()
             else:
                 frames_list = []
                 rng = torch.Generator(device=self.device).manual_seed(int(self.seed))
@@ -542,7 +544,7 @@ class Generator(nn.Module):
             # ).images.to(vae.dtype)
             # clean_frames = self.decode_latents_batch(clean_latent)
 
-            save_name = f"{edit_name}_lmr_{self.local_merge_ratio}_gmr_{self.global_merge_ratio}"
+            save_name = f"{edit_name}_lmr_{self.local_merge_ratio}_gmr_{self.global_merge_ratio}_vox_{self.data_parser.voxel_size}"
             
             cur_output_path = os.path.join(output_path, save_name)
             save_config(self.config, cur_output_path, gene = True)

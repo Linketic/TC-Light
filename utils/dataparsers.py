@@ -213,7 +213,7 @@ def readCamInfo(file):
             
     return cam_info
 
-def RGBD2PCD(rgbs, depths, intrinsics, c2ws):
+def rgbd2pcd(rgbs, depths, intrinsics, c2ws):
     # Assuming rgbs is of shape (N, 3, H, W), depths is of shape (N, 1, H, W), and c2ws is of shape (N, 4, 4)
     N, _, H, W = rgbs.shape
     if len(intrinsics.shape) == 2:
@@ -247,6 +247,30 @@ def RGBD2PCD(rgbs, depths, intrinsics, c2ws):
     
     return p_world, rgb_world
 
+def get_flowid(frames, flows):
+    N, _, H, W = frames.shape
+    flow_ids = torch.ones_like(frames[:, 0], dtype=torch.int64) * -1
+    flow_ids[0] = torch.arange(H * W).view(H, W)
+    last_id = H * W
+
+    grid_y, grid_x = torch.meshgrid(torch.arange(H), torch.arange(W))
+    grid_y = grid_y.to(device=frames.device)
+    grid_x = grid_x.to(device=frames.device)
+    diff_threshold = frames.max().item() * 0.1
+    for i in tqdm(range(1, N), desc="Assigning flow ids"):
+        x = (grid_x + flows[i-1, 0]).round().to(torch.int64)
+        y = (grid_y + flows[i-1, 1]).round().to(torch.int64)
+        mask = (x >= 0) & (x < W) & (y >= 0) & (y < H)
+        # cut off flow when error is significant
+        diff_mask = (frames[i, :, y[mask], x[mask]] - frames[i-1, :, grid_y[mask], grid_x[mask]]).abs().max(dim=0).values < diff_threshold
+        flow_ids[i, y[mask][diff_mask], x[mask][diff_mask]] = flow_ids[i-1, grid_y[mask][diff_mask], grid_x[mask][diff_mask]]
+
+        unassigned = (flow_ids[i] == -1)
+        flow_ids[i, unassigned] = last_id + torch.arange(unassigned.sum(), device=frames.device)
+        last_id += unassigned.sum()
+    
+    return flow_ids
+
 def process_frames(frames, h, w):
 
     fh, fw = frames.shape[-2:]
@@ -270,22 +294,69 @@ def process_frames(frames, h, w):
         frame_ls.append(cropped_frame)
     return torch.stack(frame_ls)
 
-def voxelization(p_world, feats, voxel_size, xyz_min=None):
+def contract_to_unisphere(
+    x: torch.Tensor,
+    ord: float = 2,
+    eps: float = 1e-6,
+    derivative: bool = False,
+    cdf_lb: float = 0.1,
+    num_bins: int = 1000,
+):  
+    x_pdf, x_pos = torch.histogram(x[:, 0].cpu(), bins=num_bins)
+    y_pdf, y_pos = torch.histogram(x[:, 1].cpu(), bins=num_bins)
+    z_pdf, z_pos = torch.histogram(x[:, 2].cpu(), bins=num_bins)
+    x_cdf, x_pos = torch.cumsum(x_pdf, dim=0) / x.shape[0], x_pos[:-1]
+    y_cdf, y_pos = torch.cumsum(y_pdf, dim=0) / x.shape[0], y_pos[:-1]
+    z_cdf, z_pos = torch.cumsum(z_pdf, dim=0) / x.shape[0], z_pos[:-1]
+
+    aabb = torch.tensor([
+        x_pos[x_cdf > cdf_lb].min(),
+        y_pos[y_cdf > cdf_lb].min(),
+        z_pos[z_cdf > cdf_lb].min(),
+        x_pos[x_cdf > 1 - cdf_lb].min(),
+        y_pos[y_cdf > 1 - cdf_lb].min(),
+        z_pos[z_cdf > 1 - cdf_lb].min(),
+    ], device=x.device)
+    aabb_min, aabb_max = torch.split(aabb, aabb.shape[0] // 2, dim=-1)
+    x = (x - aabb_min) / (aabb_max - aabb_min)
+    x = x * 2 - 1  # aabb is at [-1, 1]
+    mag = torch.linalg.norm(x, ord=ord, dim=-1, keepdim=True)
+    mask = mag.squeeze(-1) > 1
+
+    if derivative:
+        dev = (2 * mag - 1) / mag**2 + 2 * x**2 * (
+            1 / mag**3 - (2 * mag - 1) / mag**4
+        )
+        dev[~mask] = 1.0
+        dev = torch.clamp(dev, min=eps)
+        return dev
+    else:
+        x[mask] = (2 - 1 / mag[mask]) * (x[mask] / mag[mask])
+        x = x / 4 + 0.5  # [-inf, inf] is at [0, 1]
+        return x
+
+def voxelization(flow_ids, in_feats_rgb, in_feats_coord, voxel_size, xyz_min=None, contract=False):
     with torch.no_grad():
         # automatically determine the voxel size
-        N, P, C = p_world.shape
-        p_world = p_world.reshape(N*P, C)
-        feats = feats.reshape(N*P, -1)
+        _, unq_inv_t, _ = torch.unique(flow_ids, return_inverse=True, return_counts=True, dim=0)
+        feats_rgb = torch_scatter.scatter(in_feats_rgb, unq_inv_t, dim=0, reduce='mean')
+        feats_coord = torch_scatter.scatter(in_feats_coord, unq_inv_t, dim=0, reduce='mean')
+
+        # contract to unit sphere
+        # decide aabb according to density
+        if contract:
+            feats_coord = contract_to_unisphere(feats_coord, ord=torch.inf)
         if xyz_min is None:
-            xyz_min = torch.min(p_world.reshape(-1, 3), dim=0).values
-        voxel_index = torch.div(p_world - xyz_min[None, :], voxel_size[None, :], rounding_mode='floor')
+            xyz_min = torch.min(feats_coord, dim=0).values
+        voxel_size = torch.tensor([voxel_size] * 3, dtype=feats_coord.dtype, device=feats_coord.device)
+        voxel_index = torch.div(feats_coord - xyz_min[None, :], voxel_size[None, :], rounding_mode='floor')
         voxel_coords = voxel_index * voxel_size[None, :] + xyz_min[None, :] + voxel_size[None, :] / 2
+        feats_coord, unq_inv_xyz, _ = torch.unique(voxel_coords, return_inverse=True, return_counts=True, dim=0)
+        feats_rgb = torch_scatter.scatter(feats_rgb, unq_inv_xyz, dim=0, reduce='mean')
 
-        new_coors, unq_inv, unq_cnt = torch.unique(voxel_coords, return_inverse=True, return_counts=True, dim=0)
-        print("[INFO] Number of unique voxels: ", new_coors.shape[0])
-        # feat_mean = torch_scatter.scatter(feats, unq_inv, dim=0, reduce='mean')
+        unq_inv = unq_inv_xyz[unq_inv_t]
 
-        # new_feats = feat_mean[unq_inv]
+        print(f"Total number of unique voxels: {feats_rgb.shape[0]} / {flow_ids.shape[0]}")
 
         return unq_inv
 
@@ -299,10 +370,11 @@ class SceneFlowDataParser:
         self.scene_path = "15mm_focallength/scene_backwards/fast" if not hasattr(data_config, "scene_path") else data_config.scene_path
         self.stereo_sel = "left" if not hasattr(data_config, "stereo_sel") else data_config.stereo_sel
         self.voxel_size = 0.1 if not hasattr(data_config, "voxel_size") else data_config.voxel_size
+        self.contract = False if not hasattr(data_config, "contract") else data_config.contract
         self.h, self.w = data_config.height, data_config.width
         self.device = device
         self.unq_inv = None
-        self.flows = None
+        self.new_coors = None
 
         assert self.stereo_sel in ['left', 'right'], "stereo_sel must be either 'left' or 'right'"
         assert self.scene_path.split('/')[0] in ['15mm_focallength', '35mm_focallength'], "scene_path must be either '15mm_focallength' or '35mm_focallength'"
@@ -321,8 +393,9 @@ class SceneFlowDataParser:
         
         self.cam_info = readCamInfo(os.path.join(self.data_dir, "camera_data", self.scene_path, "camera_data.txt"))
     
-    def load_video(self, frame_ids=None):
+    def load_video(self, frame_ids=None, contract=False):
         rgbs, depths, c2ws = [], [], []
+        flows, _ = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=False)
         for i in tqdm(range(len(self.cam_info)), desc="Loading Data"):
             if i in frame_ids:
                 rgb = read(os.path.join(self.rgb_path, "{:04d}.png".format(self.cam_info[i]["frame_id"])))
@@ -338,55 +411,48 @@ class SceneFlowDataParser:
         depths = torch.stack(depths, dim=0)
         c2ws = torch.stack(c2ws, dim=0)
         N, _, H, W = rgbs.shape
-
-        # Assuming rgb is of shape (N, 3, H, W), depth is of shape (N, 1, H, W), and c2w is of shape (N, 4, 4)
-        p_world, rgb_world = RGBD2PCD(rgbs, depths, self.intrinsics, c2ws)  # Shape: (N, H*W, 3), (N, H*W, 3)
+        p_world, rgb_world = rgbd2pcd(rgbs, depths, self.intrinsics, c2ws)  # Shape: (N, H*W, 3), (N, H*W, 3)
         p_world = process_frames(p_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
         rgb_world = process_frames(rgb_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
-        del rgbs, depths, c2ws  # Free up memory
+        flow_ids = get_flowid(rgb_world, flows)
 
-        # Get mapping from frame to 3D prior
-        voxel_size = torch.tensor([self.voxel_size] * 3, dtype=p_world.dtype, device=p_world.device)
-        self.unq_inv = voxelization(p_world.permute(0, 2, 3, 1).reshape(N, -1, 3), 
-                                    rgb_world.permute(0, 2, 3, 1).reshape(N, -1, 3), voxel_size)
+        del rgbs, depths, c2ws, flows  # Free up memory
 
-        return rgb_world
+        self.unq_inv = voxelization(flow_ids.reshape(-1), 
+                                    rgb_world.permute(0, 2, 3, 1).reshape(-1, 3), 
+                                    p_world.permute(0, 2, 3, 1).reshape(-1, 3),
+                                    self.voxel_size, contract=self.contract)
+
+        return rgb_world, p_world
     
-    def load_video_flow(self, frame_ids=None, past_flow=False):
-        rgbs, flows, past_flows = [], [], []
+    def load_flow(self, frame_ids=None, future_flow=False, past_flow=False):
+        flows, past_flows = [], []
         for i in tqdm(range(len(self.cam_info)), desc="Loading Data"):
             if i in frame_ids:
-                rgb = read(os.path.join(self.rgb_path, "{:04d}.png".format(self.cam_info[i]["frame_id"])))
-                optical_flow_future = read(os.path.join(self.future_flow_path, "OpticalFlowIntoFuture_{:04d}_L.pfm".format(self.cam_info[i]["frame_id"])))
-
-                rgbs.append(torch.tensor(rgb, dtype=torch.float32, device=self.device).permute(2, 0, 1))
-                flows.append(torch.tensor(optical_flow_future.copy(), dtype=torch.float32, device=self.device).permute(2, 0, 1))
+                if future_flow:
+                    optical_flow_future = read(os.path.join(self.future_flow_path, "OpticalFlowIntoFuture_{:04d}_L.pfm".format(self.cam_info[i]["frame_id"])))
+                    flows.append(torch.tensor(optical_flow_future.copy(), dtype=torch.float32, device=self.device).permute(2, 0, 1))
 
                 if past_flow:
                     optical_flow_past = read(os.path.join(self.past_flow_path, "OpticalFlowIntoPast_{:04d}_L.pfm".format(self.cam_info[i]["frame_id"])))
                     past_flows.append(torch.tensor(optical_flow_past.copy(), dtype=torch.float32, device=self.device).permute(2, 0, 1))
-            
-        rgbs = torch.stack(rgbs, dim=0) / 255.0
-        flows = torch.stack(flows, dim=0)
-        
-        N, _, H, W = rgbs.shape
-        flows = process_frames(flows, self.h, self.w)  # Shape: (N, 3, h, w)
-        rgbs = process_frames(rgbs, self.h, self.w)  # Shape: (N, 3, h, w)
 
-        scale_factor = max(self.w / W, self.h / H)
-        flows *= scale_factor
-
-        self.flows = flows
+        if future_flow:
+            flows = torch.stack(flows, dim=0)
+            N, _, H, W = flows.shape
+            flows = process_frames(flows, self.h, self.w)
+            scale_factor = max(self.w / W, self.h / H)
+            flows *= scale_factor
+        else:
+            flows = None
 
         if past_flow:
             past_flows = torch.stack(past_flows, dim=0)
+            N, _, H, W = past_flows.shape
             past_flows = process_frames(past_flows, self.h, self.w)
+            scale_factor = max(self.w / W, self.h / H)
             past_flows *= scale_factor
-            self.past_flows = past_flows
         else:
-            self.past_flows = None
+            past_flows = None
 
-        return rgbs
-
-
-
+        return flows, past_flows

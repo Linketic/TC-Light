@@ -208,7 +208,7 @@ def warp_flow(img, flow):
 
     res = cv2.remap(
         img, flow_new, None, cv2.INTER_CUBIC, borderMode=cv2.BORDER_CONSTANT
-    )
+    )  # because of interpolation, the warpped result woule never be perfectly accurate
     return res
 
 def compute_fwdbwd_mask(fwd_flow, bwd_flow):
