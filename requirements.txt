@@ -1,4 +1,4 @@
-diffusers==0.27.2
+diffusers==0.32.1
 transformers==4.45.0
 opencv-python
 safetensors
@@ -9,9 +9,9 @@ peft
 gradio==3.41.2
 protobuf==3.20
 
-# open3d-python
 plyfile
 torch_scatter
+xformers
 
 # eval
 omegaconf
@@ -28,3 +28,13 @@ pynvml
 nltk
 better_profanity
 mediapipe
+
+# videovae
+pytorch_lightning
+beautifulsoup4
+taming-transformers
+
+# vidtok
+lightning
+rich
+beartype

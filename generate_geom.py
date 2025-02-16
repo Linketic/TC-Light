@@ -6,6 +6,7 @@ import torch
 import torch_scatter
 import numpy as np
 from tqdm import tqdm
+from einops import rearrange
 from transformers import logging
 
 from plugin.VidToMe.utils import CONTROLNET_DICT
@@ -26,12 +27,11 @@ from cosmos1.models.diffusion.prompt_upsampler.video2world_prompt_upsampler_infe
 logging.set_verbosity_error()
 
 class Generator(nn.Module):
-    def __init__(self, vae, pipe, scheduler, config):
+    def __init__(self, vae, pipe, scheduler, config, video_vae=False):
         super().__init__()
 
         self.device = config.device
         self.seed = config.seed
-
         self.model_key = config.model_key
 
         self.config = config
@@ -43,12 +43,14 @@ class Generator(nn.Module):
         else:
             self.dtype = torch.float32
             print("[INFO] float precision fp32. Use torch.float32.")
-
+        
         self.pipe = pipe
         self.vae = vae
         self.tokenizer = pipe.tokenizer
         self.unet = pipe.unet
         self.text_encoder = pipe.text_encoder
+        self.video_vae = video_vae
+        self.time_n_compress = 1 if not video_vae else 4
         if config.enable_xformers_memory_efficient_attention:
             try:
                 pipe.enable_xformers_memory_efficient_attention()
@@ -57,7 +59,7 @@ class Generator(nn.Module):
         self.n_timesteps = gene_config.n_timesteps
         scheduler.set_timesteps(gene_config.n_timesteps, device=self.device)
         self.scheduler = scheduler
-        num_frames = len(list(range(*config.generation.frame_range)))
+        num_frames = len(list(range(*config.generation.frame_range))) // self.time_n_compress
         self.rng = [torch.Generator(device=self.device).manual_seed(int(self.seed))] * num_frames
 
         self.batch_size = 2
@@ -187,11 +189,11 @@ class Generator(nn.Module):
 
     @torch.no_grad()
     def prepare_data(self, latent_path, frame_ids, apply_unq_inv):
-        self.frames, _ = self.data_parser.load_video(frame_ids=frame_ids)
+        self.frames, _, _ = self.data_parser.load_video(frame_ids=frame_ids)
         
         if latent_path is None:
             self.init_noise = self.pipe.prepare_latents(
-                self.frames.shape[0],
+                self.frames.shape[0] // self.time_n_compress,
                 self.pipe.unet.config.in_channels,
                 self.frames.shape[2],
                 self.frames.shape[3],
@@ -224,12 +226,33 @@ class Generator(nn.Module):
 
     @torch.no_grad()
     def decode_latents_batch(self, latents):
-        imgs = []
-        batch_latents = latents.split(self.batch_size, dim=0)
-        for latent in batch_latents:
-            imgs += [self.decode_latents(latent)]
-        imgs = torch.cat(imgs)
-        return imgs
+        if not self.video_vae:
+            imgs = []
+            batch_latents = latents.split(self.batch_size, dim=0)
+            for latent in batch_latents:
+                imgs += [self.decode_latents(latent)]
+            imgs = torch.cat(imgs)
+            return imgs
+        else:
+            latents = rearrange(latents,'t c h w -> c t h w').unsqueeze(0) / 0.18215
+            # imgs = self.decode_latents(latents).squeeze(0)
+            with torch.autocast(device_type=self.device, dtype=self.dtype):
+                imgs = self.vae.decode(latents).sample.squeeze(0)
+                imgs = (imgs / 2 + 0.5).clamp(0, 1)
+                imgs = rearrange(imgs,'c t h w -> t c h w')
+
+            # for vidtok, videovae+
+            # imgs = []
+            # batch_latents = latents.split(2, dim=0)
+            # with torch.autocast(device_type=self.device, dtype=self.dtype):
+            #     for latent in batch_latents:
+            #         latent = rearrange(latent,'t c h w -> c t h w').unsqueeze(0)
+            #         img = rearrange(self.vae.decode(latent).squeeze(0), 'c t h w -> t c h w')
+            #         img = (img / 2 + 0.5).clamp(0, 1)
+            #         imgs += [img]
+            # imgs = torch.cat(imgs)
+            
+            return imgs
 
     @torch.no_grad()
     def encode_imgs(self, imgs):
@@ -241,12 +264,32 @@ class Generator(nn.Module):
 
     @torch.no_grad()
     def encode_imgs_batch(self, imgs):
-        latents = []
-        batch_imgs = imgs.split(self.batch_size, dim=0)
-        for img in batch_imgs:
-            latents += [self.encode_imgs(img)]
-        latents = torch.cat(latents)
-        return latents
+        if not self.video_vae:
+            latents = []
+            batch_imgs = imgs.split(self.batch_size, dim=0)
+            for img in batch_imgs:
+                latents += [self.encode_imgs(img)]
+            latents = torch.cat(latents)
+            return latents
+        else:
+            frame_end = 1 + (imgs.shape[0] -1) // 4 * 4
+            imgs = rearrange(imgs[:frame_end],'t c h w -> c t h w').unsqueeze(0)
+            # latents = self.encode_imgs(imgs).squeeze(0)
+            with torch.autocast(device_type=self.device, dtype=self.dtype):
+                imgs = 2 * imgs - 1
+                latents = self.vae.encode(imgs).latent_dist.mode().squeeze(0) * 0.18215
+                latents = rearrange(latents, 'c t h w -> t c h w')
+
+            # for vidtok, videovae+
+            # latents = []
+            # batch_imgs = imgs.split(8, dim=0)
+            # with torch.autocast(device_type=self.device, dtype=self.dtype):
+            #     for img in batch_imgs:
+            #         img = rearrange(img,'t c h w -> c t h w').unsqueeze(0) * 2 - 1
+            #         latents += [rearrange(self.vae.encode(img).squeeze(0), 'c t h w -> t c h w')]
+            # latents = torch.cat(latents)
+            
+            return latents
     
     def get_chunks(self, flen):
         x_index = torch.arange(flen)
@@ -455,6 +498,9 @@ class Generator(nn.Module):
             start_time = datetime.datetime.now()
 
             concat_conds = self.encode_imgs_batch(self.frames)
+            # clean_frames = self.decode_latents_batch(concat_conds)  # reconstruct to check results
+
+            assert concat_conds.shape[1] == self.pipe.unet.config.in_channels, f"Expected {self.pipe.unet.config.in_channels} channels, got {concat_conds.shape[1]}"
             conds, unconds = self.encode_prompt_pair(positive_prompt=edit_prompt, negative_prompt=self.negative_prompt)
 
             if unet_bg is None:
@@ -463,10 +509,11 @@ class Generator(nn.Module):
                 clean_latent = self.ddim_sample(self.init_noise, prompt_embeds, concat_conds)  
                 clean_frames = self.decode_latents_batch(clean_latent)
 
-                N, _, H, W = clean_frames.shape
-                clean_frames = clean_frames.permute(0, 2, 3, 1).reshape(N*H*W, -1)
-                clean_frames = torch_scatter.scatter(clean_frames, self.data_parser.unq_inv, dim=0, reduce='mean')
-                clean_frames = clean_frames[self.data_parser.unq_inv].reshape(N, H, W, -1).permute(0, 3, 1, 2)
+                if not self.video_vae:
+                    N, _, H, W = clean_frames.shape
+                    clean_frames = clean_frames.permute(0, 2, 3, 1).reshape(N*H*W, -1)
+                    clean_frames = torch_scatter.scatter(clean_frames, self.data_parser.unq_inv, dim=0, reduce='mean')
+                    clean_frames = clean_frames[self.data_parser.unq_inv].reshape(N, H, W, -1).permute(0, 3, 1, 2)
                 torch.cuda.empty_cache()
             else:
                 frames_list = []

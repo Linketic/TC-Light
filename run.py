@@ -10,7 +10,7 @@ import safetensors.torch as sf
 from torch.hub import download_url_to_file
 from diffusers import DiffusionPipeline
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline
-from diffusers import AutoencoderKL, UNet2DConditionModel, DDIMScheduler, EulerAncestralDiscreteScheduler, DPMSolverMultistepScheduler
+from diffusers import AutoencoderKL, AutoencoderKLCogVideoX, UNet2DConditionModel, DDIMScheduler, EulerAncestralDiscreteScheduler, DPMSolverMultistepScheduler
 from diffusers import DDIMInverseScheduler, DPMSolverMultistepInverseScheduler
 from diffusers.models.attention_processor import AttnProcessor2_0
 from transformers import CLIPTextModel, CLIPTokenizer
@@ -21,6 +21,8 @@ from plugin.VidToMe.utils import load_config, get_frame_ids, seed_everything
 from invert import Inverter
 from generate_geom import Generator
 
+from utils.common_utils import instantiate_from_config
+from plugin.VideoVAE.CV_VAE.models.modeling_vae import CVVAEModel
 
 if __name__ == "__main__":
     config = load_config()
@@ -118,6 +120,17 @@ if __name__ == "__main__":
         config.generation.frame_range, config.generation.frame_ids)
     config.total_number_of_frames = len(frame_ids)
 
-    generator = Generator(vae, pipe, dpmpp_2m_sde_karras_scheduler, config)
+    vae = CVVAEModel.from_pretrained('models', subfolder="vae3d_v1-1")
+
+    # from omegaconf import OmegaConf
+    # vae = instantiate_from_config(OmegaConf.load("models/vidtok/vidtok_kl_noncausal_488_4chn.yaml").model)
+
+    # vae = AutoencoderKLCogVideoX.from_pretrained("THUDM/CogVideoX1.5-5B", subfolder="vae")
+    # vae.enable_slicing()
+    # vae.enable_tiling()
+
+    vae = vae.to(device=device, dtype=torch.bfloat16)
+
+    generator = Generator(vae, pipe, dpmpp_2m_sde_karras_scheduler, config, video_vae=True)
     generator(config.input_path, config.generation.latents_path,
               config.generation.output_path, frame_ids=frame_ids)

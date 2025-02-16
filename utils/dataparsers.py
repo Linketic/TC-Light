@@ -416,14 +416,14 @@ class SceneFlowDataParser:
         rgb_world = process_frames(rgb_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
         flow_ids = get_flowid(rgb_world, flows)
 
-        del rgbs, depths, c2ws, flows  # Free up memory
+        del rgbs, depths, flows  # Free up memory
 
         self.unq_inv = voxelization(flow_ids.reshape(-1), 
                                     rgb_world.permute(0, 2, 3, 1).reshape(-1, 3), 
                                     p_world.permute(0, 2, 3, 1).reshape(-1, 3),
                                     self.voxel_size, contract=self.contract)
 
-        return rgb_world, p_world
+        return rgb_world, p_world, c2ws
     
     def load_flow(self, frame_ids=None, future_flow=False, past_flow=False):
         flows, past_flows = [], []

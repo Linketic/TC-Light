@@ -163,3 +163,9 @@ cython_debug/
 .vscode/
 workdir
 data
+models/vae3d_v1-1
+models/vidtok
+plugin/VideoVAE/CV_VAE
+vidtok/models
+vidtok/data
+vidtok/modules
