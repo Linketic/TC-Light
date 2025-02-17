@@ -12,6 +12,7 @@ import torchvision.transforms as T
 from scipy import misc
 from PIL import Image
 from tqdm import tqdm
+from evaluation import eval_utils as eu
 
 def read(file):
     if file.endswith('.float3'): return readFloat(file)
@@ -339,10 +340,12 @@ def voxelization(flow_ids, in_feats_rgb, in_feats_coord, voxel_size, rgb_vox_siz
     with torch.no_grad():
         # automatically determine the voxel size
         _, unq_inv_t, _ = torch.unique(flow_ids, return_inverse=True, return_counts=True, dim=0)
-        if in_feats_coord is None:
+        if voxel_size is None:
+            print("[INFO] Scatter with Time Dimention.")
             feats_rgb = torch_scatter.scatter(in_feats_rgb, unq_inv_t, dim=0, reduce='mean')
             unq_inv = unq_inv_t
         else:
+            print("[INFO] Scatter with Time&Spatial Dimention.")
             feats_rgb = torch_scatter.scatter(in_feats_rgb, unq_inv_t, dim=0, reduce='mean')
             feats_coord = torch_scatter.scatter(in_feats_coord, unq_inv_t, dim=0, reduce='mean')
 
@@ -374,8 +377,9 @@ class SceneFlowDataParser:
         self.data_dir = "data/sceneflow" if not hasattr(data_config, "data_dir") else data_config.data_dir
         self.scene_path = "15mm_focallength/scene_backwards/fast" if not hasattr(data_config, "scene_path") else data_config.scene_path
         self.stereo_sel = "left" if not hasattr(data_config, "stereo_sel") else data_config.stereo_sel
-        self.voxel_size = 0.1 if not hasattr(data_config, "voxel_size") else data_config.voxel_size
+        self.voxel_size = None if not hasattr(data_config, "voxel_size") else data_config.voxel_size
         self.contract = False if not hasattr(data_config, "contract") else data_config.contract
+        self.use_raft = False if not hasattr(data_config, "use_raft") else data_config.use_raft
         self.h, self.w = data_config.height, data_config.width
         self.device = device
         self.unq_inv = None
@@ -398,9 +402,9 @@ class SceneFlowDataParser:
         
         self.cam_info = readCamInfo(os.path.join(self.data_dir, "camera_data", self.scene_path, "camera_data.txt"))
     
+    @torch.no_grad()
     def load_video(self, frame_ids=None, contract=False):
         rgbs, depths, c2ws = [], [], []
-        flows, _ = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=False)
         for i in tqdm(range(len(self.cam_info)), desc="Loading Data"):
             if i in frame_ids:
                 rgb = read(os.path.join(self.rgb_path, "{:04d}.png".format(self.cam_info[i]["frame_id"])))
@@ -419,6 +423,7 @@ class SceneFlowDataParser:
         p_world, rgb_world = rgbd2pcd(rgbs, depths, self.intrinsics, c2ws)  # Shape: (N, H*W, 3), (N, H*W, 3)
         p_world = process_frames(p_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
         rgb_world = process_frames(rgb_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
+        flows, _ = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=False, gts=rgb_world)
         flow_ids = get_flowid(rgb_world, flows)
 
         del rgbs, depths, flows  # Free up memory
@@ -430,22 +435,47 @@ class SceneFlowDataParser:
 
         return rgb_world, p_world, c2ws
     
-    def load_flow(self, frame_ids=None, future_flow=False, past_flow=False):
+    @torch.no_grad()
+    def load_flow(self, frame_ids=None, future_flow=False, past_flow=False, gts=None):
         flows, past_flows = [], []
-        for i in tqdm(range(len(self.cam_info)), desc="Loading Data"):
+        raft_model = eu.prepare_raft_model(self.device) if self.use_raft else None
+        rgb_factor = 1.0 if gts.max().item() > 1 else 255.0
+        for i in tqdm(range(len(self.cam_info)), desc="Loading Flows"):
             if i in frame_ids:
-                if future_flow:
-                    optical_flow_future = read(os.path.join(self.future_flow_path, "OpticalFlowIntoFuture_{:04d}_L.pfm".format(self.cam_info[i]["frame_id"])))
-                    flows.append(torch.tensor(optical_flow_future.copy(), dtype=torch.float32, device=self.device).permute(2, 0, 1))
+                if not self.use_raft:
+                    if future_flow:
+                        optical_flow_future = read(os.path.join(self.future_flow_path, "OpticalFlowIntoFuture_{:04d}_L.pfm".format(self.cam_info[i]["frame_id"])))
+                        flows.append(torch.tensor(optical_flow_future.copy(), dtype=torch.float32, device=self.device).permute(2, 0, 1))
 
-                if past_flow:
-                    optical_flow_past = read(os.path.join(self.past_flow_path, "OpticalFlowIntoPast_{:04d}_L.pfm".format(self.cam_info[i]["frame_id"])))
-                    past_flows.append(torch.tensor(optical_flow_past.copy(), dtype=torch.float32, device=self.device).permute(2, 0, 1))
+                    if past_flow:
+                        optical_flow_past = read(os.path.join(self.past_flow_path, "OpticalFlowIntoPast_{:04d}_L.pfm".format(self.cam_info[i]["frame_id"])))
+                        past_flows.append(torch.tensor(optical_flow_past.copy(), dtype=torch.float32, device=self.device).permute(2, 0, 1))
+                else:
+                    idx = torch.where(torch.tensor(frame_ids) == i)[0].item()
+                    if future_flow:
+                        if idx == gts.shape[0] - 1:
+                            flow_fwd = torch.zeros_like(gts[0:1, :2])
+                        else:
+                            padder = eu.InputPadder(gts[idx:idx+1].shape)
+                            gt, gt_next = padder.pad(gts[idx:idx+1]*rgb_factor, gts[idx+1:idx+2]*rgb_factor)
+                            _, flow_fwd = raft_model(gt, gt_next, iters=20, test_mode=True)
+                        flows.append(flow_fwd[0].cpu())
+
+                    if past_flow:
+                        if idx == 0:
+                            flow_bwd = torch.zeros_like(gts[0:1, :2])
+                        else:
+                            padder = eu.InputPadder(gts[idx:idx+1].shape)
+                            gt, gt_prev = padder.pad(gts[idx:idx+1]*rgb_factor, gts[idx-1:idx]*rgb_factor)
+                            _, flow_bwd = raft_model(gt, gt_prev, iters=20, test_mode=True)
+                        past_flows.append(flow_bwd[0].cpu())
+        
+        del raft_model  # Free up memory
 
         if future_flow:
             flows = torch.stack(flows, dim=0)
             N, _, H, W = flows.shape
-            flows = process_frames(flows, self.h, self.w)
+            flows = process_frames(flows, self.h, self.w).to(self.device)
             scale_factor = max(self.w / W, self.h / H)
             flows *= scale_factor
         else:
@@ -454,7 +484,7 @@ class SceneFlowDataParser:
         if past_flow:
             past_flows = torch.stack(past_flows, dim=0)
             N, _, H, W = past_flows.shape
-            past_flows = process_frames(past_flows, self.h, self.w)
+            past_flows = process_frames(past_flows, self.h, self.w).to(self.device)
             scale_factor = max(self.w / W, self.h / H)
             past_flows *= scale_factor
         else:
