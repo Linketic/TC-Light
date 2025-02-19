@@ -509,11 +509,11 @@ class Generator(nn.Module):
                 clean_latent = self.ddim_sample(self.init_noise, prompt_embeds, concat_conds)  
                 clean_frames = self.decode_latents_batch(clean_latent)
 
-                if not self.video_vae:
-                    N, _, H, W = clean_frames.shape
-                    clean_frames = clean_frames.permute(0, 2, 3, 1).reshape(N*H*W, -1)
-                    clean_frames = torch_scatter.scatter(clean_frames, self.data_parser.unq_inv, dim=0, reduce='mean')
-                    clean_frames = clean_frames[self.data_parser.unq_inv].reshape(N, H, W, -1).permute(0, 3, 1, 2)
+                # if not self.video_vae:
+                #     N, _, H, W = clean_frames.shape
+                #     clean_frames = clean_frames.permute(0, 2, 3, 1).reshape(N*H*W, -1)
+                #     clean_frames = torch_scatter.scatter(clean_frames, self.data_parser.unq_inv, dim=0, reduce='mean')
+                #     clean_frames = clean_frames[self.data_parser.unq_inv].reshape(N, H, W, -1).permute(0, 3, 1, 2)
                 torch.cuda.empty_cache()
             else:
                 frames_list = []

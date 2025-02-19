@@ -120,7 +120,7 @@ if __name__ == "__main__":
         config.generation.frame_range, config.generation.frame_ids)
     config.total_number_of_frames = len(frame_ids)
 
-    vae = CVVAEModel.from_pretrained('models', subfolder="vae3d_v1-1")
+    # vae = CVVAEModel.from_pretrained('models', subfolder="vae3d_v1-1")
 
     # from omegaconf import OmegaConf
     # vae = instantiate_from_config(OmegaConf.load("models/vidtok/vidtok_kl_noncausal_488_4chn.yaml").model)
@@ -129,8 +129,8 @@ if __name__ == "__main__":
     # vae.enable_slicing()
     # vae.enable_tiling()
 
-    vae = vae.to(device=device, dtype=torch.bfloat16)
+    # vae = vae.to(device=device, dtype=torch.bfloat16)
 
-    generator = Generator(vae, pipe, dpmpp_2m_sde_karras_scheduler, config, video_vae=True)
+    generator = Generator(vae, pipe, dpmpp_2m_sde_karras_scheduler, config, video_vae=False)
     generator(config.input_path, config.generation.latents_path,
               config.generation.output_path, frame_ids=frame_ids)

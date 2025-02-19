@@ -12,6 +12,7 @@ protobuf==3.20
 plyfile
 torch_scatter
 xformers
+pytorch-msssim
 
 # eval
 omegaconf
