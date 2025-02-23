@@ -7,14 +7,15 @@ from concurrent.futures import ThreadPoolExecutor
 import torch.nn.functional as F
 
 class OptDataset(Dataset):
-    def __init__(self, edited_images, past_flows, mask_bwd, device):
+    def __init__(self, edited_images, past_flows, mask_bwd, device, dtype=torch.float32):
 
         super(OptDataset, self).__init__()
 
-        self.edited_images = edited_images
-        self.past_flows = past_flows
+        self.edited_images = edited_images.to(dtype=dtype, device=device)
+        self.past_flows = past_flows.to(dtype=dtype, device=device)
         self.mask_bwd = mask_bwd
         self.device = device
+        self.dtype = dtype
 
         if self.edited_images.max() > 1:
             self.edited_images = self.edited_images / 255.0  # normalise to [0, 1] for further optimization

@@ -187,9 +187,9 @@ def prepare_raft_model(device):
 
     return model
 
-def load_image(imfile, DEVICE):
+def load_image(imfile, DEVICE, dtype=torch.float):
     img = np.array(imfile).astype(np.uint8)
-    img = torch.from_numpy(img).permute(2, 0, 1).float()
+    img = torch.from_numpy(img).permute(2, 0, 1).to(dtype)
     return img[None].to(DEVICE)
 
 def resize_flow(flow, img_h, img_w):
