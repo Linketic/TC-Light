@@ -373,7 +373,7 @@ class SceneFlowDataParser:
     def __init__(self, 
                  data_config,
                  device="cuda",
-                 dtype=torch.float16):
+                 dtype=torch.float32):
 
         self.data_dir = "data/sceneflow" if not hasattr(data_config, "data_dir") else data_config.data_dir
         self.scene_path = "15mm_focallength/scene_backwards/fast" if not hasattr(data_config, "scene_path") else data_config.scene_path

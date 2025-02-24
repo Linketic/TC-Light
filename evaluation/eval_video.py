@@ -81,7 +81,10 @@ if __name__ == '__main__':
 
                 main_dict[k][video_name] = {}
                 scores = scores_main.copy()
-                video_path = f'{output_dir}/output.gif'
+                if os.path.exists(f'{output_dir}/output_opt.gif'):
+                    video_path = f'{output_dir}/output_opt.gif'
+                else:
+                    video_path = f'{output_dir}/output.gif'
                 source_video_path = f'{output_dir}/output_gt.gif'
 
                 if os.path.exists(video_path):
