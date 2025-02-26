@@ -381,6 +381,7 @@ class SceneFlowDataParser:
         self.voxel_size = None if not hasattr(data_config, "voxel_size") else data_config.voxel_size
         self.contract = False if not hasattr(data_config, "contract") else data_config.contract
         self.use_raft = False if not hasattr(data_config, "use_raft") else data_config.use_raft
+        self.fps = 30 if not hasattr(data_config, "fps") else data_config.fps
         self.h, self.w = data_config.height, data_config.width
         self.device = device
         self.dtype = dtype
