@@ -6,9 +6,14 @@ get_available_gpu() {
 }
 
 declare -a configs=(
-    # "plugin/VidToMe/configs/iclight_sceneflow_opt.yaml"
-    "plugin/VidToMe/configs/iclight_sceneflow_opt_lmr5_gmr4.yaml"
-    "plugin/VidToMe/configs/iclight_sceneflow_opt_lmr9_gmr8.yaml"
+    "plugin/VidToMe/configs/sceneflow/iclight_vidtome_sceneflow_35mm_bk_right.yaml"
+    "plugin/VidToMe/configs/sceneflow/iclight_vidtome_sceneflow_35mm_fw_left.yaml"
+    "plugin/VidToMe/configs/sceneflow/iclight_vidtome_sceneflow_15mm_bk_left.yaml"
+    "plugin/VidToMe/configs/sceneflow/iclight_vidtome_sceneflow_15mm_fw_right.yaml"
+    # "plugin/VidToMe/configs/sceneflow/iclight_vidtome_opt_sceneflow_15mm_bk_left.yaml"
+    # "plugin/VidToMe/configs/sceneflow/iclight_vidtome_opt_sceneflow_15mm_fw_right.yaml"
+    # "plugin/VidToMe/configs/sceneflow/iclight_vidtome_opt_sceneflow_35mm_bk_right.yaml"
+    # "plugin/VidToMe/configs/sceneflow/iclight_vidtome_opt_sceneflow_35mm_fw_left.yaml"
 )
 
 for config in "${configs[@]}"; do

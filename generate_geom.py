@@ -111,17 +111,7 @@ class Generator(nn.Module):
             self.data_parser = SceneFlowDataParser(data_config, self.device)
             config.input_path = self.data_parser.rgb_path
         else:
-            raise NotImplementedError(f"Scene type {data_config.scene_type} is not supported.")
-
-        for prompt_name in gene_config.prompt.keys():
-            if gene_config.prompt[prompt_name] is None:
-                dialog = prepare_dialog(self.data_parser.rgb_path)
-                prompt_upsampler = create_vlm_prompt_upsampler(
-                    checkpoint_dir=gene_config.prompt_upsampler_ckpt,
-                )
-                gene_config.prompt[prompt_name] = run_chat_completion(
-                    prompt_upsampler, dialog, max_gen_len=400, temperature=0.01, top_p=0.9, logprobs=False
-                )
+            raise NotImplementedError(f"Scene type {data_config.scene_type} is not supported.")          
 
         self.prompt = gene_config.prompt
         self.negative_prompt = gene_config.negative_prompt
@@ -523,6 +513,18 @@ class Generator(nn.Module):
             torch.cuda.reset_peak_memory_stats()
             start_time = datetime.datetime.now()
             with torch.no_grad():
+                if edit_prompt is None:
+                    if not self.data_parser.rgb_path.endswith(".mp4"):
+                        save_video(self.frames, self.data_parser.rgb_path, save_frame=False, post_fix = "_gt", gif=False)
+                        self.data_parser.rgb_path = os.path.join(self.data_parser.rgb_path, "output_gt.mp4")
+                    dialog = prepare_dialog(self.data_parser.rgb_path)
+                    prompt_upsampler = create_vlm_prompt_upsampler(
+                        checkpoint_dir=self.config.generation.prompt_upsampler_ckpt,
+                    )
+                    edit_prompt = run_chat_completion(
+                        prompt_upsampler, dialog, max_gen_len=400, temperature=0.01, top_p=0.9, logprobs=False
+                    )
+                
                 concat_conds = self.encode_imgs_batch(self.frames)
                 # clean_frames = self.decode_latents_batch(concat_conds)  # reconstruct to check results
 
@@ -566,11 +568,12 @@ class Generator(nn.Module):
             self.config.total_time = (end_time - start_time).total_seconds()
             self.config.sec_per_frame = self.config.total_time / len(frame_ids)
 
-            save_name = f"{edit_name}_lmr_{self.local_merge_ratio}_gmr_{self.global_merge_ratio}_vox_{self.data_parser.voxel_size}"
+            opt_post_fix = "_opt" if self.apply_opt else ""
+            save_name = f"{edit_name}_lmr_{self.local_merge_ratio}_gmr_{self.global_merge_ratio}_vox_{self.data_parser.voxel_size}"+opt_post_fix
             
             cur_output_path = os.path.join(output_path, save_name)
             save_config(self.config, cur_output_path, gene = True)
-            save_video(clean_frames, cur_output_path, save_frame=self.save_frame, post_fix="_opt" if self.apply_opt else "")
+            save_video(clean_frames, cur_output_path, save_frame=self.save_frame, post_fix=opt_post_fix)
 
             if not os.path.exists(os.path.join(output_path, save_name, "gt")) or \
                 len(os.listdir(os.path.join(output_path, edit_name, "gt"))) != len(self.frames):

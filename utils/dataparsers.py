@@ -440,16 +440,17 @@ class SceneFlowDataParser:
     @torch.no_grad()
     def load_flow(self, frame_ids=None, future_flow=False, past_flow=False, gts=None):
         flows, past_flows = [], []
+        stereo_tag = "L" if self.stereo_sel == "left" else "R"
         raft_model = eu.prepare_raft_model(self.device) if self.use_raft else None
         for i in tqdm(range(len(self.cam_info)), desc="Loading Flows"):
             if i in frame_ids:
                 if not self.use_raft:
                     if future_flow:
-                        optical_flow_future = read(os.path.join(self.future_flow_path, "OpticalFlowIntoFuture_{:04d}_L.pfm".format(self.cam_info[i]["frame_id"])))
+                        optical_flow_future = read(os.path.join(self.future_flow_path, "OpticalFlowIntoFuture_{:04d}_{}.pfm".format(self.cam_info[i]["frame_id"], stereo_tag)))
                         flows.append(torch.tensor(optical_flow_future.copy(), dtype=self.dtype, device=self.device).permute(2, 0, 1))
 
                     if past_flow:
-                        optical_flow_past = read(os.path.join(self.past_flow_path, "OpticalFlowIntoPast_{:04d}_L.pfm".format(self.cam_info[i]["frame_id"])))
+                        optical_flow_past = read(os.path.join(self.past_flow_path, "OpticalFlowIntoPast_{:04d}_{}.pfm".format(self.cam_info[i]["frame_id"], stereo_tag)))
                         past_flows.append(torch.tensor(optical_flow_past.copy(), dtype=self.dtype, device=self.device).permute(2, 0, 1))
                 else:
                     rgb_factor = 1.0 if gts.max().item() > 1 else 255.0
