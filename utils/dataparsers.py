@@ -1,6 +1,7 @@
 import os
 import sys
 import re
+import cv2
 import uuid
 import random
 import imageio
@@ -13,6 +14,8 @@ from scipy import misc
 from PIL import Image
 from tqdm import tqdm
 from evaluation import eval_utils as eu
+
+from plugin.VidToMe.utils import load_video as _load_video
 
 def read(file):
     if file.endswith('.float3'): return readFloat(file)
@@ -404,10 +407,12 @@ class SceneFlowDataParser:
             self.intrinsics = np.array([[1050.0, 0.0, 479.5], [0.0, 1050.0, 269.5], [0.0, 0.0, 1.0]])
         
         self.cam_info = readCamInfo(os.path.join(self.data_dir, "camera_data", self.scene_path, "camera_data.txt"))
+        self.n_frames = len(self.cam_info)
     
     @torch.no_grad()
     def load_video(self, frame_ids=None, contract=False):
         rgbs, depths, c2ws = [], [], []
+        self.n_frames = len(self.frame_ids)
         for i in tqdm(range(len(self.cam_info)), desc="Loading Data"):
             if i in frame_ids:
                 rgb = read(os.path.join(self.rgb_path, "{:04d}.png".format(self.cam_info[i]["frame_id"])))
@@ -454,14 +459,13 @@ class SceneFlowDataParser:
                         optical_flow_past = read(os.path.join(self.past_flow_path, "OpticalFlowIntoPast_{:04d}_{}.pfm".format(self.cam_info[i]["frame_id"], stereo_tag)))
                         past_flows.append(torch.tensor(optical_flow_past.copy(), dtype=self.dtype, device=self.device).permute(2, 0, 1))
                 else:
-                    rgb_factor = 1.0 if gts.max().item() > 1 else 255.0
                     idx = torch.where(torch.tensor(frame_ids) == i)[0].item()
                     if future_flow:
                         if idx == gts.shape[0] - 1:
                             flow_fwd = torch.zeros_like(gts[0:1, :2])
                         else:
                             padder = eu.InputPadder(gts[idx:idx+1].shape)
-                            gt, gt_next = padder.pad(gts[idx:idx+1]*rgb_factor, gts[idx+1:idx+2]*rgb_factor)
+                            gt, gt_next = padder.pad(gts[idx:idx+1], gts[idx+1:idx+2])
                             _, flow_fwd = raft_model(gt, gt_next, iters=20, test_mode=True)
                         flows.append(flow_fwd[0].cpu())
 
@@ -470,10 +474,122 @@ class SceneFlowDataParser:
                             flow_bwd = torch.zeros_like(gts[0:1, :2])
                         else:
                             padder = eu.InputPadder(gts[idx:idx+1].shape)
-                            gt, gt_prev = padder.pad(gts[idx:idx+1]*rgb_factor, gts[idx-1:idx]*rgb_factor)
+                            gt, gt_prev = padder.pad(gts[idx:idx+1], gts[idx-1:idx])
                             _, flow_bwd = raft_model(gt, gt_prev, iters=20, test_mode=True)
                         past_flows.append(flow_bwd[0].cpu())
         
+        del raft_model  # Free up memory
+
+        if future_flow:
+            flows = torch.stack(flows, dim=0)
+            N, _, H, W = flows.shape
+            flows = process_frames(flows, self.h, self.w).to(self.device)
+            scale_factor = max(self.w / W, self.h / H)
+            flows *= scale_factor
+        else:
+            flows = None
+
+        if past_flow:
+            past_flows = torch.stack(past_flows, dim=0)
+            N, _, H, W = past_flows.shape
+            past_flows = process_frames(past_flows, self.h, self.w).to(self.device)
+            scale_factor = max(self.w / W, self.h / H)
+            past_flows *= scale_factor
+        else:
+            past_flows = None
+
+        return flows, past_flows
+
+class VideoDataParser:
+
+    def __init__(self, 
+                 data_config,
+                 device="cuda",
+                 dtype=torch.float32):
+
+        self.rgb_path = data_config.rgb_path
+        self.fps = 30 if not hasattr(data_config, "fps") else data_config.fps
+        self.h, self.w = data_config.height, data_config.width
+        self.voxel_size = None
+        self.device = device
+        self.dtype = dtype
+        self.unq_inv = None
+
+        if self.rgb_path.endswith(".mp4") or self.rgb_path.endswith(".gif"):
+            cap = cv2.VideoCapture(self.rgb_path)
+            self.n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        else:
+            self.n_frames = len(os.listdir(self.rgb_path))
+    
+    @torch.no_grad()
+    def load_video(self, frame_ids=None):
+        rgbs = _load_video(self.rgb_path, self.h, self.w, 
+                           frame_ids=frame_ids, device=self.device, base=8)
+        flows, past_flows = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgbs)
+        flow_ids = get_flowid(rgbs, flows)
+
+        self.n_frames = rgbs.shape[0]
+        self.unq_inv = voxelization(flow_ids.reshape(-1), 
+                                    rgbs.permute(0, 2, 3, 1).reshape(-1, 3), 
+                                    None, None)
+
+        return rgbs, None, None, flows, past_flows
+    
+    @torch.no_grad()
+    def load_flow(self, frame_ids=None, future_flow=False, past_flow=False, gts=None, save_flow=True):
+        flows, past_flows = [], []
+
+        if self.rgb_path.endswith(".mp4"):
+            future_flow_path = self.rgb_path.replace(".mp4", "_future_flow")
+            past_flow_path = self.rgb_path.replace(".mp4", "_past_flow")
+        elif self.rgb_path.endswith(".gif"):
+            future_flow_path = self.rgb_path.replace(".gif", "_future_flow")
+            past_flow_path = self.rgb_path.replace(".gif", "_past_flow")
+        else:
+            future_flow_path = os.path.join(os.path.dirname(self.rgb_path), "future_flow")
+            past_flow_path = os.path.join(os.path.dirname(self.rgb_path), "past_flow")
+        
+        if not os.path.exists(future_flow_path):
+            os.makedirs(future_flow_path)
+        if not os.path.exists(past_flow_path):
+            os.makedirs(past_flow_path)
+        
+        if save_flow:
+            print(f"[INFO] Saving future flows to {future_flow_path} as .pt files")
+            print(f"[INFO] Saving past flows to {past_flow_path} as .pt files")
+
+        raft_model = eu.prepare_raft_model(self.device)
+        for idx in tqdm(range(len(gts)), desc="Loading Flows"):
+            if future_flow:
+                if os.path.exists(os.path.join(future_flow_path, "{:04d}.pt".format(frame_ids[idx]))):
+                    flow_fwd = torch.load(os.path.join(future_flow_path, "{:04d}.pt".format(frame_ids[idx])))
+                else:
+                    if idx == gts.shape[0] - 1:
+                        flow_fwd = torch.zeros_like(gts[0:1, :2])
+                    else:
+                        padder = eu.InputPadder(gts[idx:idx+1].shape)
+                        gt, gt_next = padder.pad(gts[idx:idx+1], gts[idx+1:idx+2])
+                        _, flow_fwd = raft_model(gt, gt_next, iters=20, test_mode=True)
+                    if save_flow:
+                        torch.save(flow_fwd.cpu(), os.path.join(future_flow_path, "{:04d}.pt".format(frame_ids[idx])))
+
+                flows.append(flow_fwd[0].cpu())
+
+            if past_flow:
+                if os.path.exists(os.path.join(past_flow_path, "{:04d}.pt".format(frame_ids[idx]))):
+                    flow_bwd = torch.load(os.path.join(past_flow_path, "{:04d}.pt".format(frame_ids[idx])))
+                else:
+                    if idx == 0:
+                        flow_bwd = torch.zeros_like(gts[0:1, :2])
+                    else:
+                        padder = eu.InputPadder(gts[idx:idx+1].shape)
+                        gt, gt_prev = padder.pad(gts[idx:idx+1], gts[idx-1:idx])
+                        _, flow_bwd = raft_model(gt, gt_prev, iters=20, test_mode=True)
+                    if save_flow:
+                        torch.save(flow_bwd.cpu(), os.path.join(past_flow_path, "{:04d}.pt".format(frame_ids[idx])))
+
+                past_flows.append(flow_bwd[0].cpu())
+
         del raft_model  # Free up memory
 
         if future_flow:

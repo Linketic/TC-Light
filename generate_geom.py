@@ -79,8 +79,6 @@ class Generator(nn.Module):
         self.n_timesteps = gene_config.n_timesteps
         scheduler.set_timesteps(gene_config.n_timesteps, device=self.device)
         self.scheduler = scheduler
-        num_frames = len(list(range(*config.generation.frame_range))) // self.time_n_compress
-        self.rng = [torch.Generator(device=self.device).manual_seed(int(self.seed))] * num_frames
 
         self.batch_size = 2
         self.control = gene_config.control
@@ -106,9 +104,13 @@ class Generator(nn.Module):
         self.vox_ratio = gene_config.vox_ratio
 
         data_config = config.data
-        if  data_config.scene_type.lower() == "sceneflow":
+        if data_config.scene_type.lower() == "sceneflow":
             from utils.dataparsers import SceneFlowDataParser
             self.data_parser = SceneFlowDataParser(data_config, self.device)
+            config.input_path = self.data_parser.rgb_path
+        elif data_config.scene_type.lower() == "video":
+            from utils.dataparsers import VideoDataParser
+            self.data_parser = VideoDataParser(data_config, self.device)
             config.input_path = self.data_parser.rgb_path
         else:
             raise NotImplementedError(f"Scene type {data_config.scene_type} is not supported.")          
@@ -500,6 +502,7 @@ class Generator(nn.Module):
         else:
             print(f"[INFO] latent path found at {latent_path}")
         
+        self.rng = [torch.Generator(device=self.device).manual_seed(int(self.seed))] * len(frame_ids)
         self.latent_path = latent_path
         self.frame_ids = frame_ids
         self.prepare_data(latent_path, frame_ids)
@@ -508,7 +511,6 @@ class Generator(nn.Module):
         self.frames = self.frames.to(device=self.vae.device, dtype=self.vae.dtype)
 
         for edit_name, edit_prompt in self.prompt.items():
-            print(f"[INFO] current prompt: {edit_prompt}")
             # concat_conds = self.vae.encode(self.frames).latent_dist.mode() * self.vae.config.scaling_factor
             torch.cuda.reset_peak_memory_stats()
             start_time = datetime.datetime.now()
@@ -524,7 +526,8 @@ class Generator(nn.Module):
                     edit_prompt = run_chat_completion(
                         prompt_upsampler, dialog, max_gen_len=400, temperature=0.01, top_p=0.9, logprobs=False
                     )
-                
+
+                print(f"[INFO] current prompt: {edit_prompt}")
                 concat_conds = self.encode_imgs_batch(self.frames)
                 # clean_frames = self.decode_latents_batch(concat_conds)  # reconstruct to check results
 
