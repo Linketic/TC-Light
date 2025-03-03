@@ -412,7 +412,6 @@ class SceneFlowDataParser:
     @torch.no_grad()
     def load_video(self, frame_ids=None, contract=False):
         rgbs, depths, c2ws = [], [], []
-        self.n_frames = len(self.frame_ids)
         for i in tqdm(range(len(self.cam_info)), desc="Loading Data"):
             if i in frame_ids:
                 rgb = read(os.path.join(self.rgb_path, "{:04d}.png".format(self.cam_info[i]["frame_id"])))
@@ -424,6 +423,7 @@ class SceneFlowDataParser:
                 depths.append(torch.tensor(depth[None], dtype=self.dtype, device=self.device))
                 c2ws.append(torch.tensor(c2w, dtype=self.dtype, device=self.device))
         
+        self.n_frames = len(rgbs)
         rgbs = torch.stack(rgbs, dim=0) / 255.0
         depths = torch.stack(depths, dim=0)
         c2ws = torch.stack(c2ws, dim=0)

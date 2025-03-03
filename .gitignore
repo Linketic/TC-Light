@@ -169,3 +169,5 @@ plugin/VideoVAE/CV_VAE
 vidtok/models
 vidtok/data
 vidtok/modules
+plugin/lerobot
+tools/agibot

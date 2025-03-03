@@ -19,7 +19,7 @@ omegaconf
 controlnet_aux
 pyav==12.0.5
 scikit-learn
--e git+https://github.com/openai/CLIP.git
+clip @ git+https://github.com/openai/CLIP.git
 
 # cosmos
 loguru
@@ -39,3 +39,6 @@ taming-transformers
 lightning
 rich
 beartype
+
+# agibot
+git+https://github.com/huggingface/lerobot@59e275743499c5811a9f651a8947e8f881c4058c

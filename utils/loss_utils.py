@@ -251,7 +251,7 @@ def color_correct(img, ref, num_iters=5, eps=0.5 / 255):
     return corrected_img
 
 class VGGPerceptualLoss(torch.nn.Module):
-    def __init__(self, resize=True, device='cuda'):
+    def __init__(self, resize=True, device='cuda', loss_type='l2'):
         super(VGGPerceptualLoss, self).__init__()
         blocks = []
         blocks.append(torchvision.models.vgg16(pretrained=True).features[:4].eval())
@@ -266,6 +266,13 @@ class VGGPerceptualLoss(torch.nn.Module):
         self.resize = resize
         self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1).to(device))
         self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1).to(device))
+
+        if loss_type == 'l2':
+            self.loss = torch.nn.functional.mse_loss
+        elif loss_type == 'l1':
+            self.loss = torch.nn.functional.l1_loss
+        else:
+            raise ValueError(f"Unknown loss type: {loss_type}")
 
     def forward(self, input, target, feature_layers=[0, 1, 2, 3], style_layers=[]):
         if input.shape[1] != 3:
@@ -283,11 +290,33 @@ class VGGPerceptualLoss(torch.nn.Module):
             x = block(x)
             y = block(y)
             if i in feature_layers:
-                loss += torch.nn.functional.l1_loss(x, y)
+                loss += self.loss(x, y)
             if i in style_layers:
                 act_x = x.reshape(x.shape[0], x.shape[1], -1)
                 act_y = y.reshape(y.shape[0], y.shape[1], -1)
                 gram_x = act_x @ act_x.permute(0, 2, 1)
                 gram_y = act_y @ act_y.permute(0, 2, 1)
-                loss += torch.nn.functional.l1_loss(gram_x, gram_y)
+                loss += self.loss(gram_x, gram_y)
         return loss
+    
+def depth_loss_dpt(pred_depth, gt_depth, loss_func=F.mse_loss):
+    """
+    :param pred_depth:  (N, 1, H, W)
+    :param gt_depth:    (N, 1, H, W)
+    :param loss_func:   loss function
+    :return:            scalar
+    """
+    
+    batch_size = pred_depth.shape[0]
+    t_pred = torch.median(pred_depth.reshape(batch_size, -1), dim=-1).values
+    s_pred = torch.mean(torch.abs(pred_depth - t_pred[:, None, None, None]).reshape(batch_size, -1), dim=-1)
+
+    t_gt = torch.median(gt_depth.reshape(batch_size, -1), dim=-1).values
+    s_gt = torch.mean(torch.abs(gt_depth - t_gt[:, None, None, None]).reshape(batch_size, -1), dim=-1)
+
+    pred_depth_n = (pred_depth - t_pred[:, None, None, None]) / s_pred[:, None, None, None]
+    gt_depth_n = (gt_depth - t_gt[:, None, None, None]) / s_gt[:, None, None, None]
+
+    loss = loss_func(pred_depth_n, gt_depth_n)
+
+    return loss
