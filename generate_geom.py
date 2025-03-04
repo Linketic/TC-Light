@@ -101,6 +101,7 @@ class Generator(nn.Module):
         self.global_merge_ratio = gene_config.global_merge_ratio
         self.global_rand = gene_config.global_rand
         self.align_batch = gene_config.align_batch
+        self.max_downsample = gene_config.max_downsample
         self.vox_ratio = gene_config.vox_ratio
 
         data_config = config.data
@@ -133,7 +134,7 @@ class Generator(nn.Module):
             self.pipe.load_lora_weights(**gene_config.lora)
     
     def activate_vidtome(self):
-        vidtome.apply_patch(self.pipe, self.local_merge_ratio, self.merge_global, self.global_merge_ratio, 
+        vidtome.apply_patch(self.pipe, self.local_merge_ratio, self.merge_global, self.global_merge_ratio, max_downsample=self.max_downsample,
             seed = self.seed, batch_size = self.batch_size, align_batch = self.use_pnp or self.align_batch, global_rand = self.global_rand)        
 
     @torch.inference_mode()

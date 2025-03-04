@@ -251,7 +251,7 @@ def rgbd2pcd(rgbs, depths, intrinsics, c2ws):
     
     return p_world, rgb_world
 
-def get_flowid(frames, flows):
+def get_flowid(frames, flows, rgb_threshold=0.01):
     N, _, H, W = frames.shape
     flow_ids = torch.ones_like(frames[:, 0], dtype=torch.int64) * -1
     flow_ids[0] = torch.arange(H * W).view(H, W)
@@ -260,7 +260,7 @@ def get_flowid(frames, flows):
     grid_y, grid_x = torch.meshgrid(torch.arange(H), torch.arange(W))
     grid_y = grid_y.to(device=frames.device)
     grid_x = grid_x.to(device=frames.device)
-    diff_threshold = frames.max().item() * 0.01
+    diff_threshold = frames.max().item() * rgb_threshold
     for i in tqdm(range(1, N), desc="Assigning flow ids"):
         x = (grid_x + flows[i-1, 0]).round().to(torch.int64)
         y = (grid_y + flows[i-1, 1]).round().to(torch.int64)
@@ -410,7 +410,7 @@ class SceneFlowDataParser:
         self.n_frames = len(self.cam_info)
     
     @torch.no_grad()
-    def load_video(self, frame_ids=None, contract=False):
+    def load_video(self, frame_ids=None, contract=False, rgb_threshold=0.01):
         rgbs, depths, c2ws = [], [], []
         for i in tqdm(range(len(self.cam_info)), desc="Loading Data"):
             if i in frame_ids:
@@ -432,7 +432,7 @@ class SceneFlowDataParser:
         p_world = process_frames(p_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
         rgb_world = process_frames(rgb_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
         flows, past_flows = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgb_world)
-        flow_ids = get_flowid(rgb_world, flows)
+        flow_ids = get_flowid(rgb_world, flows, rgb_threshold=rgb_threshold)
 
         del rgbs, depths  # Free up memory
 
@@ -522,11 +522,11 @@ class VideoDataParser:
             self.n_frames = len(os.listdir(self.rgb_path))
     
     @torch.no_grad()
-    def load_video(self, frame_ids=None):
+    def load_video(self, frame_ids=None, rgb_threshold=0.01):
         rgbs = _load_video(self.rgb_path, self.h, self.w, 
                            frame_ids=frame_ids, device=self.device, base=8)
         flows, past_flows = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgbs)
-        flow_ids = get_flowid(rgbs, flows)
+        flow_ids = get_flowid(rgbs, flows, rgb_threshold=rgb_threshold)
 
         self.n_frames = rgbs.shape[0]
         self.unq_inv = voxelization(flow_ids.reshape(-1), 

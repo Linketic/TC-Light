@@ -30,11 +30,11 @@ for outdir in "${outdirs[@]}"; do
                                                 -o $outdir/output.gif \
                                                 -m 960 -f 15 &
             # Allow some time for the process to initialize and potentially use GPU memory
-            sleep 120
+            sleep 60
             break
         else
             echo "No GPU available at the moment. Retrying in 2 minute."
-            sleep 120
+            sleep 60
         fi
     done
 done

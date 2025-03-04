@@ -51,7 +51,7 @@ def img2video(input_folder, output_video, frame_rate, max_length, save_images):
             if width > max_length:
                 img = img[:, width//2 - max_length//2:width//2 + max_length//2, :]
             frames.append(img)
-        imageio.mimsave(output_video, frames, 'GIF', fps=frame_rate)
+        imageio.mimsave(output_video, frames, 'GIF', fps=frame_rate, loop=0)
     
     else:
         print("Unsupported file format. Please use .mp4 or .gif")

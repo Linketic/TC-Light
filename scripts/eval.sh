@@ -6,18 +6,22 @@ get_available_gpu() {
 }
 
 declare -a outdirs=(
-    "workdir/sceneflow/15mm_bk_left_lmr_0.01_gmr_0.01_vox_None"
-    "workdir/sceneflow/15mm_bk_left_lmr_0.9_gmr_0.8_vox_0.02_opt"
-    "workdir/sceneflow/15mm_bk_left_lmr_0.9_gmr_0.8_vox_None"
-    "workdir/sceneflow/15mm_fw_right_tokyo_lmr_0.01_gmr_0.01_vox_None"
-    "workdir/sceneflow/15mm_fw_right_tokyo_lmr_0.9_gmr_0.8_vox_0.02_opt"
-    "workdir/sceneflow/15mm_fw_right_tokyo_lmr_0.9_gmr_0.8_vox_None"
-    "workdir/sceneflow/35mm_bk_right_natural_lmr_0.01_gmr_0.01_vox_None"
-    "workdir/sceneflow/35mm_bk_right_natural_lmr_0.9_gmr_0.8_vox_0.02_opt"
-    "workdir/sceneflow/35mm_bk_right_natural_lmr_0.9_gmr_0.8_vox_None"
-    "workdir/sceneflow/35mm_fw_left_winter_lmr_0.01_gmr_0.01_vox_None"
-    "workdir/sceneflow/35mm_fw_left_winter_lmr_0.9_gmr_0.8_vox_0.02_opt"
-    "workdir/sceneflow/35mm_fw_left_winter_lmr_0.9_gmr_0.8_vox_None"
+    # "workdir/sceneflow/15mm_bk_left_lmr_0.01_gmr_0.01_vox_None"
+    # "workdir/sceneflow/15mm_bk_left_lmr_0.9_gmr_0.8_vox_0.02_opt"
+    # "workdir/sceneflow/15mm_bk_left_lmr_0.9_gmr_0.8_vox_None"
+    # "workdir/sceneflow/15mm_fw_right_tokyo_lmr_0.01_gmr_0.01_vox_None"
+    # "workdir/sceneflow/15mm_fw_right_tokyo_lmr_0.9_gmr_0.8_vox_0.02_opt"
+    # "workdir/sceneflow/15mm_fw_right_tokyo_lmr_0.9_gmr_0.8_vox_None"
+    # "workdir/sceneflow/35mm_bk_right_natural_lmr_0.01_gmr_0.01_vox_None"
+    # "workdir/sceneflow/35mm_bk_right_natural_lmr_0.9_gmr_0.8_vox_0.02_opt"
+    # "workdir/sceneflow/35mm_bk_right_natural_lmr_0.9_gmr_0.8_vox_None"
+    # "workdir/sceneflow/35mm_fw_left_winter_lmr_0.01_gmr_0.01_vox_None"
+    # "workdir/sceneflow/35mm_fw_left_winter_lmr_0.9_gmr_0.8_vox_0.02_opt"
+    # "workdir/sceneflow/35mm_fw_left_winter_lmr_0.9_gmr_0.8_vox_None"
+    "workdir/sceneflow/15mm_bk_left_ds4_lmr_0.9_gmr_0.8_vox_0.02_opt"
+    "workdir/sceneflow/15mm_bk_left_ds4_lmr_0.9_gmr_0.8_vox_None"
+    "workdir/sceneflow/15mm_bk_left_ds8_lmr_0.9_gmr_0.8_vox_0.02_opt"
+    "workdir/sceneflow/15mm_bk_left_ds8_lmr_0.9_gmr_0.8_vox_None"
 )
 
 for outdir in "${outdirs[@]}"; do
