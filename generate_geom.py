@@ -17,7 +17,6 @@ from plugin.VidToMe.utils import register_time, register_attention_control, regi
 
 from plugin.VidToMe import vidtome
 
-from utils.flow_utils import warp_flow, compute_fwdbwd_mask, get_mask_bwds
 from utils.general_utils import get_expon_lr_func
 from utils.dataloader import OptDataset
 
@@ -82,6 +81,7 @@ class Generator(nn.Module):
 
         self.batch_size = 2
         self.control = gene_config.control
+        self.noise_mode = gene_config.noise_mode  # vanilla, mixed, progressive, aggregated
         self.use_depth = config.sd_version == "depth"
         self.use_controlnet = self.control in CONTROLNET_DICT.keys()
         self.use_pnp = self.control == "pnp"
@@ -102,7 +102,7 @@ class Generator(nn.Module):
         self.global_rand = gene_config.global_rand
         self.align_batch = gene_config.align_batch
         self.max_downsample = gene_config.max_downsample
-        self.vox_ratio = gene_config.vox_ratio
+        self.correlate_noise = gene_config.correlate_noise
 
         data_config = config.data
         if data_config.scene_type.lower() == "sceneflow":
@@ -202,9 +202,8 @@ class Generator(nn.Module):
 
     @torch.no_grad()
     def prepare_data(self, latent_path, frame_ids):
-        self.frames, _, _, flows, past_flows = self.data_parser.load_video(frame_ids=frame_ids)
+        self.frames, _, _, flows, past_flows, mask_bwds = self.data_parser.load_video(frame_ids=frame_ids)
 
-        mask_bwds = get_mask_bwds(self.frames, flows, past_flows)
         self.dataset = OptDataset(
             self.frames,
             past_flows,
@@ -213,16 +212,83 @@ class Generator(nn.Module):
         )
         
         if latent_path is None:
-            self.init_noise = self.pipe.prepare_latents(
-                self.frames.shape[0] // self.time_n_compress,
-                self.pipe.unet.config.in_channels,
-                self.frames.shape[2],
-                self.frames.shape[3],
-                self.dtype,
-                self.frames.device,
-                generator=self.rng,
-                latents=None,
-            )
+            if self.noise_mode.lower() == "vanilla":
+                self.init_noise = self.pipe.prepare_latents(
+                    self.frames.shape[0] // self.time_n_compress,
+                    self.pipe.unet.config.in_channels,
+                    self.frames.shape[2],
+                    self.frames.shape[3],
+                    self.dtype,
+                    self.frames.device,
+                    generator=self.rng[0],
+                    latents=None,
+                )
+            elif self.noise_mode.lower() == "same":
+                self.init_noise = self.pipe.prepare_latents(
+                    1,
+                    self.pipe.unet.config.in_channels,
+                    self.frames.shape[2],
+                    self.frames.shape[3],
+                    self.dtype,
+                    self.frames.device,
+                    generator=self.rng[0],
+                    latents=None,
+                ).repeat(self.frames.shape[0] // self.time_n_compress, 1, 1, 1)
+            elif self.noise_mode.lower() == "mixed":
+                alpha = 1.0
+                init_noise_ind = self.pipe.prepare_latents(
+                    self.frames.shape[0] // self.time_n_compress,
+                    self.pipe.unet.config.in_channels,
+                    self.frames.shape[2],
+                    self.frames.shape[3],
+                    self.dtype,
+                    self.frames.device,
+                    generator=self.rng,
+                    latents=None,
+                )
+                init_noise_shared = self.pipe.prepare_latents(
+                    1,
+                    self.pipe.unet.config.in_channels,
+                    self.frames.shape[2],
+                    self.frames.shape[3],
+                    self.dtype,
+                    self.frames.device,
+                    generator=torch.Generator(device=self.device).manual_seed(int(self.seed)),
+                    latents=None,
+                )
+                self.init_noise = init_noise_ind / math.sqrt(1 + alpha**2) + alpha * init_noise_shared / math.sqrt(1 + alpha**2)
+            elif self.noise_mode.lower() == "progressive":
+                alpha = 2.0
+                self.init_noise = [
+                    self.pipe.prepare_latents(
+                        1,
+                        self.pipe.unet.config.in_channels,
+                        self.frames.shape[2],
+                        self.frames.shape[3],
+                        self.dtype,
+                        self.frames.device,
+                        generator=self.rng[0],
+                        latents=None,
+                )]
+                for i in range(1, self.frames.shape[0] // self.time_n_compress):
+                    init_noise_i = self.pipe.prepare_latents(
+                        1,
+                        self.pipe.unet.config.in_channels,
+                        self.frames.shape[2],
+                        self.frames.shape[3],
+                        self.dtype,
+                        self.frames.device,
+                        generator=self.rng[i],
+                        latents=None,
+                    ) / math.sqrt(1 + alpha**2)
+                    self.init_noise.append(
+                        init_noise_i + self.init_noise[i-1] * alpha / math.sqrt(1 + alpha**2)
+                    )
+                
+                self.init_noise = torch.cat(self.init_noise, dim=0)
+            else:
+                raise NotImplementedError(f"Noise mode {self.noise_mode} is not supported.")
+
         else:
             self.init_noise = load_latent(
                 latent_path, t=self.scheduler.timesteps[0], frame_ids=frame_ids).to(self.dtype).to(self.device)
@@ -362,6 +428,12 @@ class Generator(nn.Module):
                 # torch.cuda.empty_cache()
                 noises[chunk] = self.pred_noise(
                     x[chunk], conds, t, concat_conds[chunk], batch_idx=chunk)
+            
+            # progressively correlate noises
+            if self.correlate_noise.alpha >= 0:
+                alpha = self.correlate_noise.alpha * (self.correlate_noise.final_factor ** min(i / len(timesteps), 1))
+                for i in range(1, len(x)):
+                    noises[i] = noises[i] / math.sqrt(1 + alpha**2) + alpha * noises[i-1] / math.sqrt(1 + alpha**2)
 
             # x = self.pred_next_x(x, noises, t, i, inversion=False)
             x = self.scheduler.step(noises, t, x, generator=self.rng, return_dict=False)[0]
@@ -376,14 +448,6 @@ class Generator(nn.Module):
             register_time(self, t.item())
             cur_latents = load_latent(self.latent_path, t=t, frame_ids = self.frame_ids)
             self.cur_latents = cur_latents
-        
-        # Note t decreases from num_train_timesteps to 0
-        if t < self.scheduler.config.num_train_timesteps * self.vox_ratio:
-            N, _, H, W = self.frames.shape
-            decoded_x = self.decode_latents_batch(x).permute(0, 2, 3, 1).reshape(N*H*W, -1)
-            decoded_x = torch_scatter.scatter(decoded_x, self.data_parser.unq_inv, dim=0, reduce='mean')
-            decoded_x = decoded_x[self.data_parser.unq_inv].reshape(N, H, W, -1).permute(0, 3, 1, 2)
-            x = self.encode_imgs_batch(decoded_x)
         
         return x
 

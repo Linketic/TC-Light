@@ -16,6 +16,7 @@ from tqdm import tqdm
 from evaluation import eval_utils as eu
 
 from plugin.VidToMe.utils import load_video as _load_video
+from .flow_utils import warp_flow, compute_fwdbwd_mask, get_mask_bwds
 
 def read(file):
     if file.endswith('.float3'): return readFloat(file)
@@ -251,7 +252,7 @@ def rgbd2pcd(rgbs, depths, intrinsics, c2ws):
     
     return p_world, rgb_world
 
-def get_flowid(frames, flows, rgb_threshold=0.01):
+def get_flowid(frames, flows, mask_bwds, rgb_threshold=0.01):
     N, _, H, W = frames.shape
     flow_ids = torch.ones_like(frames[:, 0], dtype=torch.int64) * -1
     flow_ids[0] = torch.arange(H * W).view(H, W)
@@ -265,6 +266,7 @@ def get_flowid(frames, flows, rgb_threshold=0.01):
         x = (grid_x + flows[i-1, 0]).round().to(torch.int64)
         y = (grid_y + flows[i-1, 1]).round().to(torch.int64)
         mask = (x >= 0) & (x < W) & (y >= 0) & (y < H)
+        mask = mask & mask_bwds[i, 0]
         # cut off flow when error is significant
         diff_mask = (frames[i, :, y[mask], x[mask]] - frames[i-1, :, grid_y[mask], grid_x[mask]]).abs().max(dim=0).values < diff_threshold
         flow_ids[i, y[mask][diff_mask], x[mask][diff_mask]] = flow_ids[i-1, grid_y[mask][diff_mask], grid_x[mask][diff_mask]]
@@ -385,6 +387,7 @@ class SceneFlowDataParser:
         self.contract = False if not hasattr(data_config, "contract") else data_config.contract
         self.use_raft = False if not hasattr(data_config, "use_raft") else data_config.use_raft
         self.fps = 30 if not hasattr(data_config, "fps") else data_config.fps
+        self.alpha = 0.1 if not hasattr(data_config, "alpha") else data_config.alpha
         self.h, self.w = data_config.height, data_config.width
         self.device = device
         self.dtype = dtype
@@ -431,8 +434,8 @@ class SceneFlowDataParser:
         p_world, rgb_world = rgbd2pcd(rgbs, depths, self.intrinsics, c2ws)  # Shape: (N, H*W, 3), (N, H*W, 3)
         p_world = process_frames(p_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
         rgb_world = process_frames(rgb_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
-        flows, past_flows = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgb_world)
-        flow_ids = get_flowid(rgb_world, flows, rgb_threshold=rgb_threshold)
+        flows, past_flows, mask_bwds = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgb_world)
+        flow_ids = get_flowid(rgb_world, flows, mask_bwds, rgb_threshold=rgb_threshold)
 
         del rgbs, depths  # Free up memory
 
@@ -441,7 +444,7 @@ class SceneFlowDataParser:
                                     p_world.permute(0, 2, 3, 1).reshape(-1, 3),
                                     self.voxel_size, contract=self.contract)
 
-        return rgb_world, p_world, c2ws, flows, past_flows
+        return rgb_world, p_world, c2ws, flows, past_flows, mask_bwds
     
     @torch.no_grad()
     def load_flow(self, frame_ids=None, future_flow=False, past_flow=False, gts=None):
@@ -498,7 +501,12 @@ class SceneFlowDataParser:
         else:
             past_flows = None
 
-        return flows, past_flows
+        if future_flow and past_flow:
+            mask_bwds = get_mask_bwds(gts, flows, past_flows, alpha=self.alpha, diff_threshold=diff_threshold)
+        else:
+            mask_bwds = None
+
+        return flows, past_flows, mask_bwds
 
 class VideoDataParser:
 
@@ -509,6 +517,7 @@ class VideoDataParser:
 
         self.rgb_path = data_config.rgb_path
         self.fps = 30 if not hasattr(data_config, "fps") else data_config.fps
+        self.alpha = 0.5 if not hasattr(data_config, "alpha") else data_config.alpha
         self.h, self.w = data_config.height, data_config.width
         self.voxel_size = None
         self.device = device
@@ -525,18 +534,19 @@ class VideoDataParser:
     def load_video(self, frame_ids=None, rgb_threshold=0.01):
         rgbs = _load_video(self.rgb_path, self.h, self.w, 
                            frame_ids=frame_ids, device=self.device, base=8)
-        flows, past_flows = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgbs)
-        flow_ids = get_flowid(rgbs, flows, rgb_threshold=rgb_threshold)
+        flows, past_flows, mask_bwds = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgbs)
+
+        flow_ids = get_flowid(rgbs, flows, mask_bwds, rgb_threshold=rgb_threshold)
 
         self.n_frames = rgbs.shape[0]
         self.unq_inv = voxelization(flow_ids.reshape(-1), 
                                     rgbs.permute(0, 2, 3, 1).reshape(-1, 3), 
                                     None, None)
 
-        return rgbs, None, None, flows, past_flows
+        return rgbs, None, None, flows, past_flows, mask_bwds
     
     @torch.no_grad()
-    def load_flow(self, frame_ids=None, future_flow=False, past_flow=False, gts=None, save_flow=True):
+    def load_flow(self, frame_ids=None, future_flow=False, past_flow=False, gts=None, save_flow=True, diff_threshold=0.1):
         flows, past_flows = [], []
 
         if self.rgb_path.endswith(".mp4"):
@@ -609,5 +619,10 @@ class VideoDataParser:
             past_flows *= scale_factor
         else:
             past_flows = None
+        
+        if future_flow and past_flow:
+            mask_bwds = get_mask_bwds(gts, flows, past_flows, alpha=self.alpha, diff_threshold=diff_threshold)
+        else:
+            mask_bwds = None
 
-        return flows, past_flows
+        return flows, past_flows, mask_bwds
