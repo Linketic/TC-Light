@@ -447,7 +447,7 @@ class SceneFlowDataParser:
         return rgb_world, p_world, c2ws, flows, past_flows, mask_bwds
     
     @torch.no_grad()
-    def load_flow(self, frame_ids=None, future_flow=False, past_flow=False, gts=None):
+    def load_flow(self, frame_ids=None, future_flow=False, past_flow=False, gts=None, diff_threshold=0.1):
         flows, past_flows = [], []
         stereo_tag = "L" if self.stereo_sel == "left" else "R"
         raft_model = eu.prepare_raft_model(self.device) if self.use_raft else None
