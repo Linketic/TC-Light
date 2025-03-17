@@ -6,17 +6,23 @@ from scipy import interpolate
 
 class InputPadder:
     """ Pads images such that dimensions are divisible by 8 """
-    def __init__(self, dims, mode='sintel'):
+    def __init__(self, dims, mode='sintel', multiply=8):
         self.ht, self.wd = dims[-2:]
-        pad_ht = (((self.ht // 8) + 1) * 8 - self.ht) % 8
-        pad_wd = (((self.wd // 8) + 1) * 8 - self.wd) % 8
+        pad_ht = (((self.ht // multiply) + 1) * multiply - self.ht) % multiply
+        pad_wd = (((self.wd // multiply) + 1) * multiply - self.wd) % multiply
+        self.mode = mode
         if mode == 'sintel':
-            self._pad = [pad_wd//2, pad_wd - pad_wd//2, pad_ht//2, pad_ht - pad_ht//2]
+            self._pad = [pad_wd//2, pad_wd - pad_wd//2, pad_ht//2, pad_ht - pad_ht//2, 0, 0]
+        elif mode == "downzero":
+            self._pad = [0, pad_wd, 0, pad_ht, 0, 0]
         else:
-            self._pad = [pad_wd//2, pad_wd - pad_wd//2, 0, pad_ht]
+            self._pad = [pad_wd//2, pad_wd - pad_wd//2, 0, pad_ht, 0, 0]
 
     def pad(self, *inputs):
-        return [F.pad(x, self._pad, mode='replicate') for x in inputs]
+        if self.mode == "downzero":
+            return [F.pad(x, self._pad) for x in inputs]
+        else:
+            return [F.pad(x, self._pad, mode='replicate') for x in inputs]
 
     def unpad(self,x):
         ht, wd = x.shape[-2:]
@@ -43,6 +49,9 @@ def forward_interpolate(flow):
     y1 = y1[valid]
     dx = dx[valid]
     dy = dy[valid]
+
+    if len(x1) == 0:
+        return torch.zeros(flow.shape)
 
     flow_x = interpolate.griddata(
         (x1, y1), dx, (x0, y0), method='nearest', fill_value=0)

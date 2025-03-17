@@ -10,10 +10,12 @@ import clip
 import warnings
 import numpy as np
 import os
+from glob import glob
 sys.path.append('/data1/yang_liu/python_workspace/IC-Light/evaluation')  # TODO: change to a robust relative path
 from core.raft import RAFT
-from core.utils.utils import InputPadder
+from core.utils.utils import InputPadder, forward_interpolate
 from skimage.metrics import structural_similarity
+from scipy import interpolate
 
 def get_frame_ids(frame_range, frame_ids=None):
     if frame_ids is None:
@@ -29,26 +31,30 @@ def get_frame_ids(frame_range, frame_ids=None):
     return frame_ids
 
 def video_to_pil_list(video_path):
+    pil_list = []
     if video_path.endswith('.mp4'):
         vidcap = cv2.VideoCapture(video_path)
-        pil_list = []
         while True:
             success, image = vidcap.read()
             if success:
                 pil_list.append(Image.fromarray(image))
             else:
                 break
-
-        return pil_list
     elif video_path.endswith('.gif'):
         gif = imageio.get_reader(video_path)
-        pil_list = []
 
         for frame in gif:
             pil_list.append(Image.fromarray(frame))
-
-        return pil_list
-
+    else:
+        frame_paths = []
+        for ext in [".jpg", ".png"]:
+            frame_paths += glob(os.path.join(video_path, f"*{ext}"))
+        frame_paths = sorted(frame_paths)
+        for frame_path in frame_paths:
+            frame = Image.open(frame_path).convert('RGB')
+            pil_list.append(frame)
+    
+    return pil_list
 
 def coords_grid(b, h, w, homogeneous=False, device=None):
     y, x = torch.meshgrid(torch.arange(h), torch.arange(w))  # [H, W]
@@ -186,6 +192,61 @@ def prepare_raft_model(device):
     model.eval()
 
     return model
+
+def prepare_memflow_model(device):
+    memflow_dict = {
+        'name': 'MemFlowNet',
+        'stage': 'things',
+        'restore_ckpt': "/data1/yang_liu/python_workspace/IC-Light/models/memflow/MemFlowNet_things.pth",
+    }
+
+    args = argparse.Namespace(**memflow_dict)
+
+    if args.name == "MemFlowNet":
+        if args.stage == 'things':
+            from memflow.configs.things_memflownet import get_cfg
+        elif args.stage == 'sintel':
+            from memflow.configs.sintel_memflownet import get_cfg
+        elif args.stage == 'spring_only':
+            from memflow.configs.spring_memflownet import get_cfg
+        elif args.stage == 'kitti':
+            from memflow.configs.kitti_memflownet import get_cfg
+        else:
+            raise NotImplementedError
+    elif args.name == "MemFlowNet_T":
+        if args.stage == 'things':
+            from memflow.configs.things_memflownet_t import get_cfg
+        elif args.stage == 'things_kitti':
+            from memflow.configs.things_memflownet_t_kitti import get_cfg
+        elif args.stage == 'sintel':
+            from memflow.configs.sintel_memflownet_t import get_cfg
+        elif args.stage == 'kitti':
+            from memflow.configs.kitti_memflownet_t import get_cfg
+        else:
+            raise NotImplementedError
+
+    cfg = get_cfg()
+    cfg.update(vars(args))
+
+    from memflow.core.Networks import build_network
+    from memflow.inference import inference_core_skflow as inference_core
+    model = build_network(cfg).to(device)
+
+    if cfg.restore_ckpt is not None:
+        print("[Loading ckpt from {}]".format(cfg.restore_ckpt))
+        ckpt = torch.load(cfg.restore_ckpt, map_location='cpu')
+        ckpt_model = ckpt['model'] if 'model' in ckpt else ckpt
+        if 'module' in list(ckpt_model.keys())[0]:
+            for key in ckpt_model.keys():
+                ckpt_model[key.replace('module.', '', 1)] = ckpt_model.pop(key)
+            model.load_state_dict(ckpt_model, strict=True)
+        else:
+            model.load_state_dict(ckpt_model, strict=True)
+
+    model.eval()
+    processor = inference_core.InferenceCore(model, config=cfg)
+
+    return processor
 
 def load_image(imfile, DEVICE, dtype=torch.float):
     img = np.array(imfile).astype(np.uint8)

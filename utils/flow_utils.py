@@ -34,5 +34,6 @@ def get_mask_bwds(org_images, flows, past_flows, alpha=0.1, diff_threshold=0.1):
     org_images_warp = warp_flow(org_images[:-1], past_flows[1:])
     mask_bwds[1:] &= (org_images_warp - org_images[1:]).abs().max(dim=1).values < org_images.max().item() * diff_threshold
     mask_bwds = mask_bwds[:, None, ...].repeat(1, 3, 1, 1)
+    mask_bwds = (-torch.nn.MaxPool2d(kernel_size=5, stride=1, padding=2)(-mask_bwds.float())).bool()  # dilate error area to enhance robustness
 
     return mask_bwds

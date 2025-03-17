@@ -172,3 +172,7 @@ vidtok/modules
 plugin/lerobot
 tools/agibot
 models/rife
+models/sam2
+plugin/Tracking-Anything-with-DEVA
+plugin/MemFlow
+models/memflow
