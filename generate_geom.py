@@ -19,6 +19,7 @@ from plugin.VidToMe import vidtome
 
 from utils.general_utils import get_expon_lr_func
 from utils.dataloader import OptDataset
+from utils.flow_utils import warp_flow
 
 from cosmos1.models.diffusion.prompt_upsampler.video2world_prompt_upsampler_inference import (
     create_vlm_prompt_upsampler,
@@ -52,6 +53,7 @@ class Generator(nn.Module):
         self.apply_opt = post_opt_config.apply_opt
         self.lambda_dssim = post_opt_config.lambda_dssim
         self.lambda_flow = post_opt_config.lambda_flow
+        self.lambda_tv = post_opt_config.lambda_tv
         self.lambda_exp = post_opt_config.lambda_exp
         self.epochs_exposure = post_opt_config.epochs_exposure
         self.epochs = post_opt_config.epochs
@@ -103,6 +105,8 @@ class Generator(nn.Module):
         self.align_batch = gene_config.align_batch
         self.max_downsample = gene_config.max_downsample
         self.correlate_noise = gene_config.correlate_noise
+        self.win_size_t = gene_config.win_size_t
+        self.alpha_t = gene_config.alpha_t
 
         data_config = config.data
         if data_config.scene_type.lower() == "sceneflow":
@@ -412,11 +416,12 @@ class Generator(nn.Module):
         return chunks
 
     @torch.no_grad()
-    def ddim_sample(self, x, conds, concat_conds):
+    def ddim_sample(self, x, conds, conds_t, concat_conds):
         print("[INFO] denoising frames...")
         timesteps = self.scheduler.timesteps.to(self.device)
 
         noises = torch.zeros_like(x)
+        noises_t = torch.zeros_like(x)
 
         for i, t in enumerate(tqdm(timesteps, desc="Sampling")):
 
@@ -434,6 +439,10 @@ class Generator(nn.Module):
                 alpha = self.correlate_noise.alpha * (self.correlate_noise.final_factor ** min(i / len(timesteps), 1))
                 for i in range(1, len(x)):
                     noises[i] = noises[i] / math.sqrt(1 + alpha**2) + alpha * noises[i-1] / math.sqrt(1 + alpha**2)
+
+            # Temporal denoising
+            if self.alpha_t > 0:
+                noises_t, noises = self.temporal_denoise(x, conds_t, t, concat_conds, noises_t, noises)
 
             # x = self.pred_next_x(x, noises, t, i, inversion=False)
             x = self.scheduler.step(noises, t, x, generator=self.rng, return_dict=False)[0]
@@ -455,6 +464,40 @@ class Generator(nn.Module):
         if self.merge_global:
             # Reset global tokens
             vidtome.update_patch(self.pipe, global_tokens = None)
+    
+    def temporal_denoise(self, x, conds_t, t, concat_conds, noises_t, noises):
+        
+        n_slices = math.ceil((len(x) - 1) / (self.win_size_t - 1))
+        # calculate the overlaps between windows
+        if n_slices > 1:
+            overlap = (n_slices * self.win_size_t - len(x)) // (n_slices-1)
+            overlap_last = overlap + (n_slices * self.win_size_t - len(x)) % (n_slices-1)
+            overlap_list = [overlap]*(n_slices - 2) + [overlap_last]
+            # calculate the start indices of each window
+            cumsum_overlap = np.cumsum(overlap_list)
+            sl_idxs = [0] + [(i + 1) * self.win_size_t - cumsum_overlap[i] for i in range(0, n_slices-1)]
+        else:
+            overlap = 0
+            overlap_last = 0
+            overlap_list = [0]
+            sl_idxs = [0]
+        
+        chunks = self.get_chunks(x.shape[-1])
+            
+        for idx, sl_i in enumerate(sl_idxs):
+            for chunk in chunks:
+                concat_conds_t = rearrange(concat_conds[sl_i:sl_i+self.win_size_t, :, :, chunk], 'n c x y -> y c n x')
+                xt = rearrange(x[sl_i:sl_i+self.win_size_t, :, :, chunk], 'n c x y -> y c n x')
+                noises_t[sl_i:sl_i+self.win_size_t, :, :, chunk] = rearrange(self.pred_noise(
+                    xt, conds_t, t, concat_conds_t, batch_idx=chunk), 'y c n x -> n c x y')
+                
+            # normalize noise levels in overlapping frames
+            if sl_i > 0:
+                noises_t[sl_i:sl_i+overlap_list[idx-1], :, :, :] = (noises_t[sl_i:sl_i+overlap_list[idx-1], :, :, :]) * np.sqrt(1/2)
+
+        noises = (np.sqrt(self.alpha_t))*noises_t + (np.sqrt(1-self.alpha_t)) * noises
+
+        return noises_t, noises
 
     @torch.no_grad()
     def pred_noise(self, x, cond, t, concat_conds, batch_idx=None):
@@ -598,10 +641,12 @@ class Generator(nn.Module):
 
                 assert concat_conds.shape[1] == self.pipe.unet.config.in_channels, f"Expected {self.pipe.unet.config.in_channels} channels, got {concat_conds.shape[1]}"
                 conds, unconds = self.encode_prompt_pair(positive_prompt=edit_prompt, negative_prompt=self.negative_prompt)
+                conds_t, unconds_t = self.encode_prompt_pair(positive_prompt="best quality", negative_prompt="jittery")
 
                 prompt_embeds = torch.cat([unconds, conds])
+                prompt_embeds_t = torch.cat([unconds_t, conds_t])
                 # Comment this if you have enough GPU memory
-                clean_latent = self.ddim_sample(self.init_noise, prompt_embeds, concat_conds)  
+                clean_latent = self.ddim_sample(self.init_noise, prompt_embeds, prompt_embeds_t, concat_conds)  
                 clean_frames = self.decode_latents_batch(clean_latent)
 
                 # rng = torch.Generator(device=device).manual_seed(int(self.seed))
@@ -723,8 +768,10 @@ class Generator(nn.Module):
 
     def unique_tensor_optimization(self, frame_ids):
 
-        from utils.loss_utils import l1_loss, relaxed_ms_ssim
+        from utils.loss_utils import l1_loss, relaxed_ms_ssim, TVLoss
         from utils.sh_utils import RGB2SH, SH2RGB
+
+        tv_loss = TVLoss(self.lambda_tv)
 
         data_loader = torch.utils.data.DataLoader(
             self.dataset, 
@@ -767,18 +814,11 @@ class Generator(nn.Module):
                 warped_images = warp_flow(pre_images, _past_flows)
                 
                 loss_flow = l1_loss(warped_images[idxs>0][_mask_bwds], images[idxs>0][_mask_bwds])
-                
-                # quantize images to relax the restriction
-                # loss_ssim = (1.0 - ms_ssim(images, _edited_images, data_range=1)) * lambda_dssim
-                # loss_ssim_org = (1.0 - ms_ssim(rgb_to_grayscale(images), rgb_to_grayscale(org_images[idxs]), data_range=1)) * lambda_dssim * 0.2
-                # loss_photometric = loss_ssim + loss_ssim_org
 
                 loss_photometric = (1.0 - relaxed_ms_ssim(images, _edited_images, data_range=1, 
                                                         start_level=1)) * self.lambda_dssim
-                
-                # loss_photometric = vgg_loss(images, _edited_images, feature_layers=[3]) * lambda_perceptual
 
-                loss = (1 - self.lambda_exp) * loss_photometric + self.lambda_exp * loss_flow
+                loss = (1 - self.lambda_exp) * loss_photometric + self.lambda_exp * loss_flow + tv_loss(images)
 
                 loss_list.append(loss.item())
 
