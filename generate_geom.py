@@ -14,8 +14,9 @@ from plugin.VidToMe.utils import load_config, save_config
 from plugin.VidToMe.utils import get_controlnet_kwargs, get_frame_ids, get_latents_dir, init_model, seed_everything
 from plugin.VidToMe.utils import prepare_control, load_latent, load_video, prepare_depth, save_video, save_loss_curve
 from plugin.VidToMe.utils import register_time, register_attention_control, register_conv_control
-
 from plugin.VidToMe import vidtome
+
+from plugin.Slicedit.Slicedit.slicedit_attention_iclight_utils import register_extended_attention, register_time, register_denoiser_xy, register_n_keyframes
 
 from utils.general_utils import get_expon_lr_func
 from utils.dataloader import OptDataset
@@ -81,7 +82,7 @@ class Generator(nn.Module):
         scheduler.set_timesteps(gene_config.n_timesteps, device=self.device)
         self.scheduler = scheduler
 
-        self.batch_size = 2
+        self.batch_size = 6
         self.control = gene_config.control
         self.noise_mode = gene_config.noise_mode  # vanilla, mixed, progressive, aggregated
         self.use_depth = config.sd_version == "depth"
@@ -107,6 +108,14 @@ class Generator(nn.Module):
         self.correlate_noise = gene_config.correlate_noise
         self.win_size_t = gene_config.win_size_t
         self.alpha_t = gene_config.alpha_t
+        self.final_factor_t = gene_config.final_factor_t
+
+        n_keyframes, skip, qk_injection_t = self.chunk_size // 2, 8, 85
+        qk_injection_t = (self.n_timesteps - skip) * qk_injection_t // 100
+        qk_injection_timesteps = self.scheduler.timesteps[skip:skip+qk_injection_t] if qk_injection_t >= 0 else []
+
+        register_extended_attention(self, qk_injection_timesteps)
+        register_n_keyframes(self, n_keyframes)
 
         data_config = config.data
         if data_config.scene_type.lower() == "sceneflow":
@@ -122,6 +131,8 @@ class Generator(nn.Module):
 
         self.prompt = gene_config.prompt
         self.negative_prompt = gene_config.negative_prompt
+        self.prompt_t = gene_config.prompt_t
+        self.negative_prompt_t = gene_config.negative_prompt_t
         self.guidance_scale = gene_config.guidance_scale
         self.save_frame = gene_config.save_frame
 
@@ -132,7 +143,7 @@ class Generator(nn.Module):
             self.perm_div = float(self.chunk_ord.split("-")[-1]) if "-" in self.chunk_ord else 3.
             self.chunk_ord = "mix"
         # Patch VidToMe to model
-        self.activate_vidtome()
+        # self.activate_vidtome()
 
         if gene_config.use_lora:
             self.pipe.load_lora_weights(**gene_config.lora)
@@ -428,11 +439,21 @@ class Generator(nn.Module):
             x = self.pre_iter(x, t)
 
             # Split video into chunks and denoise
+            register_time(self, t.item())
+            register_denoiser_xy(self, is_xy=True)
+
+            global_frame_idx = len(x) // 2
             chunks = self.get_chunks(len(x))
             for chunk in chunks:
                 # torch.cuda.empty_cache()
-                noises[chunk] = self.pred_noise(
-                    x[chunk], conds, t, concat_conds[chunk], batch_idx=chunk)
+                ref_frame_indices = torch.cat([torch.ones_like(chunk[:1]) * global_frame_idx, chunk[::2][1:]])
+                chunk_updated = torch.cat([chunk, ref_frame_indices])
+                # noises[chunk] = self.pred_noise(
+                #     x[chunk], conds, t, concat_conds[chunk], batch_idx=chunk)
+                noises[chunk] = self.pred_noise(x[chunk_updated], conds, t, concat_conds[chunk_updated], 
+                                                batch_idx=chunk_updated)[:len(chunk)]
+            
+            register_denoiser_xy(self, is_xy=False)
             
             # progressively correlate noises
             if self.correlate_noise.alpha >= 0:
@@ -442,12 +463,13 @@ class Generator(nn.Module):
 
             # Temporal denoising
             if self.alpha_t > 0:
-                noises_t, noises = self.temporal_denoise(x, conds_t, t, concat_conds, noises_t, noises)
+                alpha_t = self.alpha_t * (self.final_factor_t ** min(i / len(timesteps), 1))
+                noises_t, noises = self.temporal_denoise(x, conds_t, t, concat_conds, alpha_t, noises_t, noises)
 
             # x = self.pred_next_x(x, noises, t, i, inversion=False)
             x = self.scheduler.step(noises, t, x, generator=self.rng, return_dict=False)[0]
 
-            self.post_iter(x, t)
+            # self.post_iter(x, t)
 
         return x
 
@@ -465,7 +487,7 @@ class Generator(nn.Module):
             # Reset global tokens
             vidtome.update_patch(self.pipe, global_tokens = None)
     
-    def temporal_denoise(self, x, conds_t, t, concat_conds, noises_t, noises):
+    def temporal_denoise(self, x, conds_t, t, concat_conds, alpha_t, noises_t, noises):
         
         n_slices = math.ceil((len(x) - 1) / (self.win_size_t - 1))
         # calculate the overlaps between windows
@@ -495,7 +517,7 @@ class Generator(nn.Module):
             if sl_i > 0:
                 noises_t[sl_i:sl_i+overlap_list[idx-1], :, :, :] = (noises_t[sl_i:sl_i+overlap_list[idx-1], :, :, :]) * np.sqrt(1/2)
 
-        noises = (np.sqrt(self.alpha_t))*noises_t + (np.sqrt(1-self.alpha_t)) * noises
+        noises = (np.sqrt(alpha_t)) * noises_t + (np.sqrt(1 - alpha_t)) * noises
 
         return noises_t, noises
 
@@ -641,7 +663,7 @@ class Generator(nn.Module):
 
                 assert concat_conds.shape[1] == self.pipe.unet.config.in_channels, f"Expected {self.pipe.unet.config.in_channels} channels, got {concat_conds.shape[1]}"
                 conds, unconds = self.encode_prompt_pair(positive_prompt=edit_prompt, negative_prompt=self.negative_prompt)
-                conds_t, unconds_t = self.encode_prompt_pair(positive_prompt="best quality", negative_prompt="jittery")
+                conds_t, unconds_t = self.encode_prompt_pair(positive_prompt=self.prompt_t, negative_prompt=self.negative_prompt_t)
 
                 prompt_embeds = torch.cat([unconds, conds])
                 prompt_embeds_t = torch.cat([unconds_t, conds_t])
