@@ -16,8 +16,6 @@ from plugin.VidToMe.utils import prepare_control, load_latent, load_video, prepa
 from plugin.VidToMe.utils import register_time, register_attention_control, register_conv_control
 from plugin.VidToMe import vidtome
 
-from plugin.Slicedit.Slicedit.slicedit_attention_iclight_utils import register_extended_attention, register_time, register_denoiser_xy, register_n_keyframes
-
 from utils.general_utils import get_expon_lr_func
 from utils.dataloader import OptDataset
 from utils.flow_utils import warp_flow
@@ -82,7 +80,7 @@ class Generator(nn.Module):
         scheduler.set_timesteps(gene_config.n_timesteps, device=self.device)
         self.scheduler = scheduler
 
-        self.batch_size = 6
+        self.batch_size = 2
         self.control = gene_config.control
         self.noise_mode = gene_config.noise_mode  # vanilla, mixed, progressive, aggregated
         self.use_depth = config.sd_version == "depth"
@@ -105,17 +103,9 @@ class Generator(nn.Module):
         self.global_rand = gene_config.global_rand
         self.align_batch = gene_config.align_batch
         self.max_downsample = gene_config.max_downsample
-        self.correlate_noise = gene_config.correlate_noise
         self.win_size_t = gene_config.win_size_t
         self.alpha_t = gene_config.alpha_t
         self.final_factor_t = gene_config.final_factor_t
-
-        n_keyframes, skip, qk_injection_t = self.chunk_size // 2, 8, 85
-        qk_injection_t = (self.n_timesteps - skip) * qk_injection_t // 100
-        qk_injection_timesteps = self.scheduler.timesteps[skip:skip+qk_injection_t] if qk_injection_t >= 0 else []
-
-        register_extended_attention(self, qk_injection_timesteps)
-        register_n_keyframes(self, n_keyframes)
 
         data_config = config.data
         if data_config.scene_type.lower() == "sceneflow":
@@ -143,7 +133,7 @@ class Generator(nn.Module):
             self.perm_div = float(self.chunk_ord.split("-")[-1]) if "-" in self.chunk_ord else 3.
             self.chunk_ord = "mix"
         # Patch VidToMe to model
-        # self.activate_vidtome()
+        self.activate_vidtome()
 
         if gene_config.use_lora:
             self.pipe.load_lora_weights(**gene_config.lora)
@@ -439,27 +429,11 @@ class Generator(nn.Module):
             x = self.pre_iter(x, t)
 
             # Split video into chunks and denoise
-            register_time(self, t.item())
-            register_denoiser_xy(self, is_xy=True)
-
-            global_frame_idx = len(x) // 2
             chunks = self.get_chunks(len(x))
             for chunk in chunks:
                 # torch.cuda.empty_cache()
-                ref_frame_indices = torch.cat([torch.ones_like(chunk[:1]) * global_frame_idx, chunk[::2][1:]])
-                chunk_updated = torch.cat([chunk, ref_frame_indices])
-                # noises[chunk] = self.pred_noise(
-                #     x[chunk], conds, t, concat_conds[chunk], batch_idx=chunk)
-                noises[chunk] = self.pred_noise(x[chunk_updated], conds, t, concat_conds[chunk_updated], 
-                                                batch_idx=chunk_updated)[:len(chunk)]
-            
-            register_denoiser_xy(self, is_xy=False)
-            
-            # progressively correlate noises
-            if self.correlate_noise.alpha >= 0:
-                alpha = self.correlate_noise.alpha * (self.correlate_noise.final_factor ** min(i / len(timesteps), 1))
-                for i in range(1, len(x)):
-                    noises[i] = noises[i] / math.sqrt(1 + alpha**2) + alpha * noises[i-1] / math.sqrt(1 + alpha**2)
+                noises[chunk] = self.pred_noise(
+                    x[chunk], conds, t, concat_conds[chunk], batch_idx=chunk)
 
             # Temporal denoising
             if self.alpha_t > 0:
@@ -469,7 +443,7 @@ class Generator(nn.Module):
             # x = self.pred_next_x(x, noises, t, i, inversion=False)
             x = self.scheduler.step(noises, t, x, generator=self.rng, return_dict=False)[0]
 
-            # self.post_iter(x, t)
+            self.post_iter(x, t)
 
         return x
 
