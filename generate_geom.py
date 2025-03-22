@@ -16,7 +16,7 @@ from plugin.VidToMe.utils import prepare_control, load_latent, load_video, prepa
 from plugin.VidToMe.utils import register_time, register_attention_control, register_conv_control
 from plugin.VidToMe import vidtome
 
-from utils.general_utils import get_expon_lr_func
+from utils.general_utils import get_expon_lr_func, adaptive_instance_normalization
 from utils.dataloader import OptDataset
 from utils.flow_utils import warp_flow
 
@@ -491,6 +491,8 @@ class Generator(nn.Module):
             if sl_i > 0:
                 noises_t[sl_i:sl_i+overlap_list[idx-1], :, :, :] = (noises_t[sl_i:sl_i+overlap_list[idx-1], :, :, :]) * np.sqrt(1/2)
 
+        # apply adaptive instance normalization to noises_t
+        noises_t = adaptive_instance_normalization(noises_t, noises)
         noises = (np.sqrt(alpha_t)) * noises_t + (np.sqrt(1 - alpha_t)) * noises
 
         return noises_t, noises
