@@ -458,13 +458,11 @@ class Generator(nn.Module):
                 self.controlnet, latent_model_input, text_embed_input, t, controlnet_cond, self.controlnet_scale)
             kwargs.update(controlnet_kwargs)
         
+        if self.model_key == 'iclight':
+            kwargs.update({'cross_attention_kwargs':{'concat_conds': concat_conds}})
+        
         # Pred noise!
-        eps = self.unet(
-            latent_model_input, 
-            t, 
-            encoder_hidden_states=text_embed_input,
-            cross_attention_kwargs={'concat_conds': concat_conds},
-            **kwargs).sample
+        eps = self.unet(latent_model_input, t, encoder_hidden_states=text_embed_input, **kwargs).sample
         noise_pred_uncond, noise_pred_cond = eps.chunk(batch_size)[-2:]
         # CFG
         noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_cond - noise_pred_uncond)
@@ -524,7 +522,7 @@ class Generator(nn.Module):
         return True
 
     @torch.inference_mode()
-    def __call__(self, data_path, latent_path, output_path, frame_ids):
+    def __call__(self, latent_path, output_path, frame_ids):
         self.scheduler.set_timesteps(self.n_timesteps)
         latent_path = get_latents_dir(latent_path, self.model_key)
         latent_path = None if not self.check_latent_exists(latent_path) else latent_path
@@ -560,15 +558,22 @@ class Generator(nn.Module):
                     )
 
             print(f"[INFO] current prompt: {edit_prompt}")
-            concat_conds = self.encode_imgs_batch(self.frames)
-            # clean_frames = self.decode_latents_batch(concat_conds)  # reconstruct to check results
 
-            assert concat_conds.shape[1] == self.pipe.unet.config.in_channels, f"Expected {self.pipe.unet.config.in_channels} channels, got {concat_conds.shape[1]}"
-            conds, unconds = self.encode_prompt_pair(positive_prompt=edit_prompt, negative_prompt=self.negative_prompt)
-            conds_t, unconds_t = self.encode_prompt_pair(positive_prompt=self.prompt_t, negative_prompt=self.negative_prompt_t)
+            if self.model_key == 'iclight':
+                concat_conds = self.encode_imgs_batch(self.frames)
+                # clean_frames = self.decode_latents_batch(concat_conds)  # reconstruct to check results
 
-            prompt_embeds = torch.cat([unconds, conds])
-            prompt_embeds_t = torch.cat([unconds_t, conds_t])
+                assert concat_conds.shape[1] == self.pipe.unet.config.in_channels, f"Expected {self.pipe.unet.config.in_channels} channels, got {concat_conds.shape[1]}"
+                conds, unconds = self.encode_prompt_pair(positive_prompt=edit_prompt, negative_prompt=self.negative_prompt)
+                conds_t, unconds_t = self.encode_prompt_pair(positive_prompt=self.prompt_t, negative_prompt=self.negative_prompt_t)
+
+                prompt_embeds = torch.cat([unconds, conds])
+                prompt_embeds_t = torch.cat([unconds_t, conds_t])
+            else:
+                concat_conds = [None] * len(frame_ids)
+                prompt_embeds = self.get_text_embeds_input(edit_prompt, self.negative_prompt)
+                prompt_embeds_t = self.get_text_embeds_input(self.prompt_t, self.negative_prompt_t)
+
             # Comment this if you have enough GPU memory
             clean_latent = self.ddim_sample(self.init_noise, prompt_embeds, prompt_embeds_t, concat_conds)
             torch.cuda.empty_cache()

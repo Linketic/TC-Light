@@ -14,21 +14,15 @@ from plugin.VidToMe.utils import register_time, register_attention_control, regi
 
 from plugin.VidToMe import vidtome
 
-from cosmos1.models.diffusion.prompt_upsampler.video2world_prompt_upsampler_inference import (
-    create_vlm_prompt_upsampler,
-    prepare_dialog,
-    run_chat_completion,
-)
-
 # suppress partial model loading warning
 logging.set_verbosity_error()
 
+
 class Inverter(nn.Module):
-    def __init__(self, vae, pipe, scheduler, config):
+    def __init__(self, pipe, scheduler, config):
         super().__init__()
 
         self.device = config.device
-        self.seed = config.seed
         self.use_depth = config.sd_version == "depth"
         self.model_key = config.model_key
 
@@ -44,7 +38,7 @@ class Inverter(nn.Module):
             print("[INFO] float precision fp32. Use torch.float32.")
 
         self.pipe = pipe
-        self.vae = vae
+        self.vae = pipe.vae
         self.tokenizer = pipe.tokenizer
         self.unet = pipe.unet
         self.text_encoder = pipe.text_encoder
@@ -53,8 +47,6 @@ class Inverter(nn.Module):
                 pipe.enable_xformers_memory_efficient_attention()
             except ModuleNotFoundError:
                 print("[WARNING] xformers not found. Disable xformers attention.")
-        num_frames = len(list(range(*config.generation.frame_range)))
-        self.rng = [torch.Generator(device=self.device).manual_seed(int(self.seed))] * num_frames
 
         self.control = inv_config.control
         if self.control != "none":
@@ -62,8 +54,8 @@ class Inverter(nn.Module):
 
         self.controlnet_scale = inv_config.control_scale
 
-        # scheduler.set_timesteps(inv_config.save_steps)
-        self.timesteps_to_save = inv_config.save_steps
+        scheduler.set_timesteps(inv_config.save_steps)
+        self.timesteps_to_save = scheduler.timesteps
         scheduler.set_timesteps(inv_config.steps)
 
         self.scheduler = scheduler
@@ -80,45 +72,6 @@ class Inverter(nn.Module):
         self.frame_height, self.frame_width = config.height, config.width
         self.work_dir = config.work_dir
 
-    @torch.inference_mode()
-    def encode_prompt_inner(self, txt: str):
-        max_length = self.tokenizer.model_max_length
-        chunk_length = self.tokenizer.model_max_length - 2
-        id_start = self.tokenizer.bos_token_id
-        id_end = self.tokenizer.eos_token_id
-        id_pad = id_end
-
-        def pad(x, p, i):
-            return x[:i] if len(x) >= i else x + [p] * (i - len(x))
-
-        tokens = self.tokenizer(txt, truncation=False, add_special_tokens=False)["input_ids"]
-        chunks = [[id_start] + tokens[i: i + chunk_length] + [id_end] for i in range(0, len(tokens), chunk_length)]
-        chunks = [pad(ck, id_pad, max_length) for ck in chunks]
-
-        token_ids = torch.tensor(chunks).to(device=self.device, dtype=torch.int64)
-        conds = self.text_encoder(token_ids).last_hidden_state
-
-        return conds
-
-    @torch.inference_mode()
-    def encode_prompt_pair(self, positive_prompt):
-        c = self.encode_prompt_inner(positive_prompt)
-        # uc = self.encode_prompt_inner(negative_prompt)
-
-        c_len = float(len(c))
-        # uc_len = float(len(uc))
-        max_count = max(c_len, 0)
-        c_repeat = int(math.ceil(max_count / c_len))
-        # uc_repeat = int(math.ceil(max_count / uc_len))
-        max_chunk = max(len(c), 0)
-
-        c = torch.cat([c] * c_repeat, dim=0)[:max_chunk]
-        # uc = torch.cat([uc] * uc_repeat, dim=0)[:max_chunk]
-
-        c = torch.cat([p[None, ...] for p in c], dim=1)
-        # uc = torch.cat([p[None, ...] for p in uc], dim=1)
-
-        return c
 
     @torch.no_grad()
     def get_text_embeds(self, prompt, negative_prompt=None, device="cuda"):
@@ -155,7 +108,7 @@ class Inverter(nn.Module):
         with torch.autocast(device_type=self.device, dtype=self.dtype):
             imgs = 2 * imgs - 1
             posterior = self.vae.encode(imgs).latent_dist
-            latents = posterior.mode() * 0.18215
+            latents = posterior.mean * 0.18215
         return latents
 
     @torch.no_grad()
@@ -178,13 +131,10 @@ class Inverter(nn.Module):
                 batches = x_index.split(self.batch_size, dim = 0)
                 for batch in batches:
                     noise = self.pred_noise(
-                        x[batch], conds, timesteps[i], concat_conds=x[batch], batch_idx=batch)
+                        x[batch], conds[batch], timesteps[i], batch_idx=batch)
                     noises += [noise]
                 noises = torch.cat(noises)
-                
-                # x = self.scheduler.step(noises, t, x, generator=self.rng, return_dict=False)[0]
                 x = self.pred_next_x(x, noises, t, i, inversion=True)
-
                 if self.save_latents and t in self.timesteps_to_save:
                     torch.save(x, os.path.join(
                         save_path, f'noisy_latents_{t}.pt'))
@@ -213,11 +163,7 @@ class Inverter(nn.Module):
         return x
 
     @torch.no_grad()
-    def pred_noise(self, x, cond, t, concat_conds, batch_idx=None):
-
-        flen = len(x)
-        text_embed_input = cond.repeat_interleave(flen, dim=0)
-
+    def pred_noise(self, x, cond, t, batch_idx=None):
         # For sd-depth model
         if self.use_depth:
             depth = self.depths
@@ -235,12 +181,7 @@ class Inverter(nn.Module):
             controlnet_kwargs = get_controlnet_kwargs(self.controlnet, x, cond, t, controlnet_cond, self.controlnet_scale)
             kwargs.update(controlnet_kwargs)
  
-        eps = self.unet(
-            x, 
-            t, 
-            encoder_hidden_states=text_embed_input,
-            cross_attention_kwargs={'concat_conds': concat_conds},
-            **kwargs).sample
+        eps = self.unet(x, t, encoder_hidden_states=cond, **kwargs).sample
         return eps
 
     @torch.no_grad()
@@ -303,15 +244,14 @@ class Inverter(nn.Module):
 
     @torch.no_grad()
     def __call__(self, data_path, save_path):
-        # self.scheduler.set_timesteps(self.steps)
+        self.scheduler.set_timesteps(self.steps)
         save_path = get_latents_dir(save_path, self.model_key)
         os.makedirs(save_path, exist_ok = True)
         if self.check_latent_exists(save_path) and not self.force:
             print(f"[INFO] inverted latents exist at: {save_path}. Skip inversion! Set 'inversion.force: True' to invert again.")
             return
 
-        frames = load_video(data_path, self.frame_height, self.frame_width, device=self.device, base=8)
-        frames = frames.to(device=self.vae.device, dtype=self.vae.dtype)
+        frames = load_video(data_path, self.frame_height, self.frame_width, device = self.device)
 
         frame_ids = list(range(len(frames)))
         if self.n_frames is not None:
@@ -320,9 +260,7 @@ class Inverter(nn.Module):
 
         if self.use_depth:
             self.depths = prepare_depth(self.pipe, frames, frame_ids, self.work_dir)
-        if isinstance(self.prompt, str):
-            prompts = [self.prompt] * len(frames)
-        conds = self.encode_prompt_pair(positive_prompt=self.prompt)
+        conds, prompts = self.prepare_cond(self.prompt, len(frames))
         with open(os.path.join(save_path, 'inversion_prompts.txt'), 'w') as f:
             f.write('\n'.join(prompts))
 
@@ -346,3 +284,12 @@ class Inverter(nn.Module):
 
             recon_save_path = os.path.join(save_path, 'recon_frames')
             save_frames(recon_frames, recon_save_path, frame_ids = frame_ids)
+
+if __name__ == "__main__":
+    config = load_config()
+    pipe, scheduler, model_key = init_model(
+        config.device, config.sd_version, config.model_key, config.inversion.control, config.float_precision)
+    config.model_key = model_key
+    seed_everything(config.seed)
+    inversion = Inverter(pipe, scheduler, config)
+    inversion(config.input_path, config.inversion.save_path)
