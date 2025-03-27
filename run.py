@@ -19,7 +19,7 @@ from briarmbg import BriaRMBG
 from plugin.VidToMe.utils import load_config, get_frame_ids, seed_everything
 
 from invert import Inverter
-from generate_geom import Generator
+from generate import Generator
 
 from utils.common_utils import instantiate_from_config
 from plugin.VideoVAE.CV_VAE.models.modeling_vae import CVVAEModel
@@ -116,18 +116,7 @@ if __name__ == "__main__":
     # inversion = Inverter(vae, pipe, dpmpp_2m_sde_karras_scheduler_inv, config)
     # inversion(config.input_path, config.inversion.save_path)
 
-    # vae = CVVAEModel.from_pretrained('models', subfolder="vae3d_v1-1")
-
-    # from omegaconf import OmegaConf
-    # vae = instantiate_from_config(OmegaConf.load("models/vidtok/vidtok_kl_noncausal_488_4chn.yaml").model)
-
-    # vae = AutoencoderKLCogVideoX.from_pretrained("THUDM/CogVideoX1.5-5B", subfolder="vae")
-    # vae.enable_slicing()
-    # vae.enable_tiling()
-
-    # vae = vae.to(device=device, dtype=torch.bfloat16)
-
-    generator = Generator(vae, pipe, dpmpp_2m_sde_karras_scheduler, config, video_vae=False)
+    generator = Generator(pipe, dpmpp_2m_sde_karras_scheduler, config, vae=vae)
 
     frame_ids = get_frame_ids(
         config.generation.frame_range, generator.data_parser.n_frames, config.generation.frame_ids)
