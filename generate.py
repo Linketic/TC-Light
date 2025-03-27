@@ -30,7 +30,7 @@ from cosmos1.models.diffusion.prompt_upsampler.video2world_prompt_upsampler_infe
 logging.set_verbosity_error()
 
 class Generator(nn.Module):
-    def __init__(self, pipe, scheduler, config, vae=None):
+    def __init__(self, pipe, scheduler, config):
         super().__init__()
 
         self.device = config.device
@@ -65,7 +65,7 @@ class Generator(nn.Module):
         self.exposure_lr_delay_mult = post_opt_config.exposure_lr_delay_mult
         
         self.pipe = pipe
-        self.vae = pipe.vae if vae is None else vae
+        self.vae = pipe.vae
         self.tokenizer = pipe.tokenizer
         self.unet = pipe.unet
         self.text_encoder = pipe.text_encoder
