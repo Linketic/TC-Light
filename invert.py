@@ -72,6 +72,17 @@ class Inverter(nn.Module):
         self.frame_height, self.frame_width = config.height, config.width
         self.work_dir = config.work_dir
 
+        data_config = config.data
+        if data_config.scene_type.lower() == "sceneflow":
+            from utils.dataparsers import SceneFlowDataParser
+            self.data_parser = SceneFlowDataParser(data_config, self.device)
+            config.input_path = self.data_parser.rgb_path
+        elif data_config.scene_type.lower() == "video":
+            from utils.dataparsers import VideoDataParser
+            self.data_parser = VideoDataParser(data_config, self.device)
+            config.input_path = self.data_parser.rgb_path
+        else:
+            raise NotImplementedError(f"Scene type {data_config.scene_type} is not supported.")          
 
     @torch.no_grad()
     def get_text_embeds(self, prompt, negative_prompt=None, device="cuda"):
@@ -243,15 +254,15 @@ class Inverter(nn.Module):
 
 
     @torch.no_grad()
-    def __call__(self, data_path, save_path):
+    def __call__(self, save_path, frame_ids=None):
         self.scheduler.set_timesteps(self.steps)
         save_path = get_latents_dir(save_path, self.model_key)
-        os.makedirs(save_path, exist_ok = True)
+        os.makedirs(save_path, exist_ok=True)
         if self.check_latent_exists(save_path) and not self.force:
             print(f"[INFO] inverted latents exist at: {save_path}. Skip inversion! Set 'inversion.force: True' to invert again.")
             return
 
-        frames = load_video(data_path, self.frame_height, self.frame_width, device = self.device)
+        frames, _, _, _, _, _ = self.data_parser.load_video(frame_ids=frame_ids)
 
         frame_ids = list(range(len(frames)))
         if self.n_frames is not None:
@@ -274,7 +285,7 @@ class Inverter(nn.Module):
         print(f"[INFO] clean latents shape: {latents.shape}")
 
         inverted_x = self.ddim_inversion(latents, conds, save_path)
-        save_config(self.config, save_path, inv = True)
+        save_config(self.config, save_path, inv=True)
         if self.recon:
             latent_reconstruction = self.ddim_sample(inverted_x, conds)
 

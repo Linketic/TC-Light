@@ -415,6 +415,7 @@ class SceneFlowDataParser:
     @torch.no_grad()
     def load_video(self, frame_ids=None, contract=False, rgb_threshold=0.01):
         rgbs, depths, c2ws = [], [], []
+        frame_ids = frame_ids if frame_ids is not None else list(range(len(self.cam_info)))
         for i in tqdm(range(len(self.cam_info)), desc="Loading Data"):
             if i in frame_ids:
                 rgb = read(os.path.join(self.rgb_path, "{:04d}.png".format(self.cam_info[i]["frame_id"])))
@@ -535,6 +536,7 @@ class VideoDataParser:
     def load_video(self, frame_ids=None, rgb_threshold=0.01):
         rgbs = _load_video(self.rgb_path, self.h, self.w, 
                            frame_ids=frame_ids, device=self.device, base=8)
+        frame_ids = frame_ids if frame_ids is not None else list(range(rgbs.shape[0]))
         flows, past_flows, mask_bwds = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgbs)
 
         flow_ids = get_flowid(rgbs, flows, mask_bwds, rgb_threshold=rgb_threshold)

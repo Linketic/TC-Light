@@ -358,8 +358,9 @@ class Generator(nn.Module):
             chunks = self.get_chunks(len(x))
             for chunk in chunks:
                 # torch.cuda.empty_cache()
+                chunk_concat_conds = concat_conds[chunk] if concat_conds is not None else None
                 noises[chunk] = self.pred_noise(
-                    x[chunk], conds, t, concat_conds[chunk], batch_idx=chunk)
+                    x[chunk], conds, t, chunk_concat_conds, batch_idx=chunk)
 
             # Temporal denoising
             if self.alpha_t > 0:
@@ -406,10 +407,10 @@ class Generator(nn.Module):
             
         for idx, sl_i in enumerate(sl_idxs):
             for chunk in chunks:
-                concat_conds_t = rearrange(concat_conds[sl_i:sl_i+self.win_size_t, :, :, chunk], 'n c x y -> y c n x')
+                concat_conds_t = rearrange(concat_conds[sl_i:sl_i+self.win_size_t, :, :, chunk], 'n c x y -> y c n x') if concat_conds is not None else None
                 xt = rearrange(x[sl_i:sl_i+self.win_size_t, :, :, chunk], 'n c x y -> y c n x')
                 noises_t[sl_i:sl_i+self.win_size_t, :, :, chunk] = rearrange(self.pred_noise(
-                    xt, conds_t, t, concat_conds_t, batch_idx=chunk), 'y c n x -> n c x y')
+                    xt, conds_t, t, concat_conds_t, batch_idx=chunk, sl_i=sl_i), 'y c n x -> n c x y')
                 
             # normalize noise levels in overlapping frames
             if sl_i > 0:
@@ -422,7 +423,7 @@ class Generator(nn.Module):
         return noises_t, noises
 
     @torch.inference_mode()
-    def pred_noise(self, x, cond, t, concat_conds=None, batch_idx=None):
+    def pred_noise(self, x, cond, t, concat_conds=None, batch_idx=None, sl_i=None):
 
         flen = len(x)
         text_embed_input = cond.repeat_interleave(flen, dim=0)
@@ -435,7 +436,10 @@ class Generator(nn.Module):
             # Cat latents from inverted source frames for PnP operation
             source_latents = self.cur_latents
             if batch_idx is not None:
-                source_latents = source_latents[batch_idx]
+                if sl_i is None:
+                    source_latents = source_latents[batch_idx]
+                else:
+                    source_latents = rearrange(source_latents[sl_i:sl_i+self.win_size_t, :, :, batch_idx], 'n c x y -> y c n x')
             latent_model_input = torch.cat([source_latents.to(x), latent_model_input])
             batch_size += 1
 
@@ -443,7 +447,10 @@ class Generator(nn.Module):
         if self.use_depth:
             depth = self.depths
             if batch_idx is not None:
-                depth = depth[batch_idx]
+                if sl_i is None:
+                    depth = depth[batch_idx]
+                else:
+                    depth = rearrange(depth[sl_i:sl_i+self.win_size_t, :, :, batch_idx], 'n c x y -> y c n x')
             depth = depth.repeat(batch_size, 1, 1, 1)
             latent_model_input = torch.cat([latent_model_input, depth.to(x)], dim=1)
         
@@ -520,97 +527,6 @@ class Generator(nn.Module):
             if not os.path.exists(cur_latent_path):
                 return False
         return True
-
-    @torch.inference_mode()
-    def __call__(self, latent_path, output_path, frame_ids):
-        self.scheduler.set_timesteps(self.n_timesteps)
-        latent_path = get_latents_dir(latent_path, self.model_key)
-        latent_path = None if not self.check_latent_exists(latent_path) else latent_path
-        if latent_path is None:
-            print("[INFO] latent path not found. Generate new latents.")
-        else:
-            print(f"[INFO] latent path found at {latent_path}")
-        
-        self.rng = [torch.Generator(device=self.device).manual_seed(int(self.seed))] * len(frame_ids)
-        self.latent_path = latent_path
-        self.frame_ids = frame_ids
-        self.prepare_data(latent_path, frame_ids)
-
-        print(f"[INFO] initial noise latent shape: {self.init_noise.shape}")
-        self.frames = self.frames.to(device=self.vae.device, dtype=self.vae.dtype)
-
-        for edit_name, edit_prompt in self.prompt.items():
-            # concat_conds = self.vae.encode(self.frames).latent_dist.mode() * self.vae.config.scaling_factor
-            torch.cuda.reset_peak_memory_stats()
-            start_time = datetime.datetime.now()
-            if edit_prompt is None:
-                if not self.data_parser.rgb_path.endswith(".mp4"):
-                    save_video(self.frames, self.data_parser.rgb_path, save_frame=False, post_fix = "_gt", gif=False)
-                    self.data_parser.rgb_path = os.path.join(self.data_parser.rgb_path, "output_gt.mp4")
-                
-                with torch.no_grad():
-                    dialog = prepare_dialog(self.data_parser.rgb_path)
-                    prompt_upsampler = create_vlm_prompt_upsampler(
-                        checkpoint_dir=self.config.generation.prompt_upsampler_ckpt,
-                    )
-                    edit_prompt = run_chat_completion(
-                        prompt_upsampler, dialog, max_gen_len=400, temperature=0.01, top_p=0.9, logprobs=False
-                    )
-
-            print(f"[INFO] current prompt: {edit_prompt}")
-
-            if self.model_key == 'iclight':
-                concat_conds = self.encode_imgs_batch(self.frames)
-                # clean_frames = self.decode_latents_batch(concat_conds)  # reconstruct to check results
-
-                assert concat_conds.shape[1] == self.pipe.unet.config.in_channels, f"Expected {self.pipe.unet.config.in_channels} channels, got {concat_conds.shape[1]}"
-                conds, unconds = self.encode_prompt_pair(positive_prompt=edit_prompt, negative_prompt=self.negative_prompt)
-                conds_t, unconds_t = self.encode_prompt_pair(positive_prompt=self.prompt_t, negative_prompt=self.negative_prompt_t)
-
-                prompt_embeds = torch.cat([unconds, conds])
-                prompt_embeds_t = torch.cat([unconds_t, conds_t])
-            else:
-                concat_conds = [None] * len(frame_ids)
-                prompt_embeds = self.get_text_embeds_input(edit_prompt, self.negative_prompt)
-                prompt_embeds_t = self.get_text_embeds_input(self.prompt_t, self.negative_prompt_t)
-
-            # Comment this if you have enough GPU memory
-            clean_latent = self.ddim_sample(self.init_noise, prompt_embeds, prompt_embeds_t, concat_conds)
-            torch.cuda.empty_cache()
-            clean_frames = self.decode_latents_batch(clean_latent)
-
-            if self.apply_opt:
-                self.dataset = OptDataset(
-                    clean_frames,
-                    self.dataset.past_flows,
-                    self.dataset.mask_bwd,
-                    device=self.device
-                )  # update dataset
-
-                clean_frames, loss_list_exposure = self.exposure_align(frame_ids)
-                clean_frames, loss_list = self.unique_tensor_optimization(frame_ids)
-
-            end_time = datetime.datetime.now()
-            max_memory_allocated = torch.cuda.max_memory_allocated() / (1024.0 ** 2)
-            self.config.max_memory_allocated = max_memory_allocated
-            self.config.total_time = (end_time - start_time).total_seconds()
-            self.config.sec_per_frame = self.config.total_time / len(frame_ids)
-
-            opt_post_fix = "_opt" if self.apply_opt else ""
-            save_name = f"{edit_name}_lmr_{self.local_merge_ratio}_gmr_{self.global_merge_ratio}_vox_{self.data_parser.voxel_size}"+opt_post_fix
-            
-            cur_output_path = os.path.join(output_path, save_name)
-            save_config(self.config, cur_output_path, gene = True)
-            save_video(clean_frames, cur_output_path, save_frame=self.save_frame, fps=self.data_parser.fps)
-
-            if not os.path.exists(os.path.join(output_path, save_name, "gt")) or \
-                len(os.listdir(os.path.join(output_path, edit_name, "gt"))) != len(self.frames):
-                self.frames = self.frames.to(device=clean_frames.device, dtype=clean_frames.dtype)
-                save_video(self.frames, cur_output_path, save_frame=False, post_fix = "_gt", fps=self.data_parser.fps)
-            
-            if self.apply_opt:
-                save_loss_curve(loss_list_exposure, os.path.join(output_path, save_name), "loss_exposure")
-                save_loss_curve(loss_list, os.path.join(output_path, save_name), "loss_unique_tensor")
 
     def exposure_align(self, frame_ids):
 
@@ -756,3 +672,93 @@ class Generator(nn.Module):
 
         return images, loss_list
     
+    @torch.inference_mode()
+    def __call__(self, latent_path, output_path, frame_ids):
+        self.scheduler.set_timesteps(self.n_timesteps)
+        latent_path = get_latents_dir(latent_path, self.model_key)
+        latent_path = None if not self.check_latent_exists(latent_path) else latent_path
+        if latent_path is None:
+            print("[INFO] latent path not found. Generate new latents.")
+        else:
+            print(f"[INFO] latent path found at {latent_path}")
+        
+        self.rng = [torch.Generator(device=self.device).manual_seed(int(self.seed))] * len(frame_ids)
+        self.latent_path = latent_path
+        self.frame_ids = frame_ids
+        self.prepare_data(latent_path, frame_ids)
+
+        print(f"[INFO] initial noise latent shape: {self.init_noise.shape}")
+        self.frames = self.frames.to(device=self.vae.device, dtype=self.vae.dtype)
+
+        for edit_name, edit_prompt in self.prompt.items():
+            # concat_conds = self.vae.encode(self.frames).latent_dist.mode() * self.vae.config.scaling_factor
+            torch.cuda.reset_peak_memory_stats()
+            start_time = datetime.datetime.now()
+            if edit_prompt is None:
+                if not self.data_parser.rgb_path.endswith(".mp4"):
+                    save_video(self.frames, self.data_parser.rgb_path, save_frame=False, post_fix = "_gt", gif=False)
+                    self.data_parser.rgb_path = os.path.join(self.data_parser.rgb_path, "output_gt.mp4")
+                
+                with torch.no_grad():
+                    dialog = prepare_dialog(self.data_parser.rgb_path)
+                    prompt_upsampler = create_vlm_prompt_upsampler(
+                        checkpoint_dir=self.config.generation.prompt_upsampler_ckpt,
+                    )
+                    edit_prompt = run_chat_completion(
+                        prompt_upsampler, dialog, max_gen_len=400, temperature=0.01, top_p=0.9, logprobs=False
+                    )
+
+            print(f"[INFO] current prompt: {edit_prompt}")
+
+            if self.model_key == 'iclight':
+                concat_conds = self.encode_imgs_batch(self.frames)
+                # clean_frames = self.decode_latents_batch(concat_conds)  # reconstruct to check results
+
+                assert concat_conds.shape[1] == self.pipe.unet.config.in_channels, f"Expected {self.pipe.unet.config.in_channels} channels, got {concat_conds.shape[1]}"
+                conds, unconds = self.encode_prompt_pair(positive_prompt=edit_prompt, negative_prompt=self.negative_prompt)
+                conds_t, unconds_t = self.encode_prompt_pair(positive_prompt=self.prompt_t, negative_prompt=self.negative_prompt_t)
+
+                prompt_embeds = torch.cat([unconds, conds])
+                prompt_embeds_t = torch.cat([unconds_t, conds_t])
+            else:
+                concat_conds = None
+                prompt_embeds = self.get_text_embeds_input(edit_prompt, self.negative_prompt)
+                prompt_embeds_t = self.get_text_embeds_input(self.prompt_t, self.negative_prompt_t)
+
+            # Comment this if you have enough GPU memory
+            clean_latent = self.ddim_sample(self.init_noise, prompt_embeds, prompt_embeds_t, concat_conds)
+            torch.cuda.empty_cache()
+            clean_frames = self.decode_latents_batch(clean_latent)
+
+            if self.apply_opt:
+                self.dataset = OptDataset(
+                    clean_frames,
+                    self.dataset.past_flows,
+                    self.dataset.mask_bwd,
+                    device=self.device
+                )  # update dataset
+
+                clean_frames, loss_list_exposure = self.exposure_align(frame_ids)
+                clean_frames, loss_list = self.unique_tensor_optimization(frame_ids)
+
+            end_time = datetime.datetime.now()
+            max_memory_allocated = torch.cuda.max_memory_allocated() / (1024.0 ** 2)
+            self.config.max_memory_allocated = max_memory_allocated
+            self.config.total_time = (end_time - start_time).total_seconds()
+            self.config.sec_per_frame = self.config.total_time / len(frame_ids)
+
+            opt_post_fix = "_opt" if self.apply_opt else ""
+            save_name = f"{edit_name}_lmr_{self.local_merge_ratio}_gmr_{self.global_merge_ratio}_vox_{self.data_parser.voxel_size}"+opt_post_fix
+            
+            cur_output_path = os.path.join(output_path, save_name)
+            save_config(self.config, cur_output_path, gene = True)
+            save_video(clean_frames, cur_output_path, save_frame=self.save_frame, fps=self.data_parser.fps)
+
+            if not os.path.exists(os.path.join(output_path, save_name, "gt")) or \
+                len(os.listdir(os.path.join(output_path, edit_name, "gt"))) != len(self.frames):
+                self.frames = self.frames.to(device=clean_frames.device, dtype=clean_frames.dtype)
+                save_video(self.frames, cur_output_path, save_frame=False, post_fix = "_gt", fps=self.data_parser.fps)
+            
+            if self.apply_opt:
+                save_loss_curve(loss_list_exposure, os.path.join(output_path, save_name), "loss_exposure")
+                save_loss_curve(loss_list, os.path.join(output_path, save_name), "loss_unique_tensor")

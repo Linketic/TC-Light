@@ -13,12 +13,11 @@ if __name__ == "__main__":
     if config.sd_version == 'iclight':
         pipe, scheduler, config.model_key = init_iclight(config.device)
     else:
-        pipe, scheduler, model_key = init_model(
+        pipe, scheduler, config.model_key = init_model(
             config.device, config.sd_version, config.model_key, config.generation.control, config.float_precision)
-        
-        print("Start inversion!")
         inversion = Inverter(pipe, scheduler, config)
-        inversion(config.input_path, config.inversion.save_path)
+        print("Start inversion!")
+        inversion(config.inversion.save_path)
 
     generator = Generator(pipe, scheduler, config)
 
@@ -26,5 +25,4 @@ if __name__ == "__main__":
         config.generation.frame_range, generator.data_parser.n_frames, config.generation.frame_ids)
     config.total_number_of_frames = len(frame_ids)
 
-    generator(config.generation.latents_path,
-              config.generation.output_path, frame_ids=frame_ids)
+    generator(config.generation.latents_path, config.generation.output_path, frame_ids=frame_ids)
