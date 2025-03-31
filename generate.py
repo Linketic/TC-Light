@@ -667,12 +667,12 @@ class Generator(nn.Module):
 
         pbar.close()
 
-        images = SH2RGB(features_dc)[self.data_parser.unq_inv].reshape(N, H*W, -1) # N x HW x 3
-        images = torch.clamp(images, 0, 1).reshape(N, H, W, 3).permute(0, 3, 1, 2)  # N x 3 x H x W
+        with torch.no_grad():
+            images = SH2RGB(features_dc)[self.data_parser.unq_inv].reshape(N, H*W, -1) # N x HW x 3
+            images = torch.clamp(images, 0, 1).reshape(N, H, W, 3).permute(0, 3, 1, 2)  # N x 3 x H x W
 
         return images, loss_list
     
-    @torch.inference_mode()
     def __call__(self, latent_path, output_path, frame_ids):
         self.scheduler.set_timesteps(self.n_timesteps)
         latent_path = get_latents_dir(latent_path, self.model_key)
