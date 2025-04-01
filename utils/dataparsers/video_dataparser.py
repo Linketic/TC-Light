@@ -6,7 +6,7 @@ from tqdm import tqdm
 from evaluation import eval_utils as eu
 
 from plugin.VidToMe.utils import load_video as _load_video
-from utils.common_utils import voxelization
+from utils.general_utils import voxelization, process_frames
 from utils.flow_utils import get_mask_bwds, get_flowid
 
 class VideoDataParser:

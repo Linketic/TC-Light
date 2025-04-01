@@ -10,7 +10,7 @@ from scipy import misc
 from tqdm import tqdm
 from evaluation import eval_utils as eu
 
-from utils.common_utils import voxelization
+from utils.general_utils import voxelization, process_frames
 from utils.flow_utils import get_mask_bwds, get_flowid
 
 def read(file):
@@ -212,30 +212,6 @@ def readCamInfo(file):
             })
             
     return cam_info
-
-def process_frames(frames, h, w):
-
-    fh, fw = frames.shape[-2:]
-    scale_factor = max(w / fw, h / fh)
-    nw = int(round(fw * scale_factor))
-    nh = int(round(fh * scale_factor))
-    size = (nh, nw)
-
-    assert len(frames.shape) >= 3
-    if len(frames.shape) == 3:
-        frames = [frames]
-
-    print(
-        f"[INFO] frame size {(fh, fw)} resize to {size} and centercrop to {(h, w)}")
-
-    frame_ls = []
-    for frame in frames:
-        resized_frame = T.Resize(size)(frame)
-        cropped_frame = T.CenterCrop([h, w])(resized_frame)
-        # croped_frame = T.FiveCrop([h, w])(resized_frame)[0]
-        frame_ls.append(cropped_frame)
-    return torch.stack(frame_ls)
-
 
 class SceneFlowDataParser:
 
