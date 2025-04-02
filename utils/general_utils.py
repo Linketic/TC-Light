@@ -250,3 +250,34 @@ def voxelization(flow_ids, in_feats_rgb, in_feats_coord, voxel_size, rgb_vox_siz
         print(f"Total number of unique voxels: {feats_rgb.shape[0]} / {flow_ids.shape[0]}")
 
         return unq_inv
+
+def save_ply(pcd_xyz, pcd_rgb):
+    from plyfile import PlyData, PlyElement
+    # ensure pcd_xyz and pcd_rgb have the correct shape
+    assert pcd_xyz.shape[0] == pcd_rgb.shape[0], "The number of points in the point cloud should be the same"
+    assert pcd_xyz.shape[1] == 3, "The point cloud coordinate should be of shape (N, 3)"
+    assert pcd_rgb.shape[1] == 3, "The point cloud color should be of shape (N, 3)"
+
+    # transform color to uint8 (assuming color values are in the range of 0-255 or 0-1)
+    if pcd_rgb.dtype != np.uint8:
+        if np.max(pcd_rgb) <= 1.0:
+            pcd_rgb = (pcd_rgb * 255).astype(np.uint8)
+        else:
+            pcd_rgb = pcd_rgb.astype(np.uint8)
+
+    # create a structured array
+    vertex_dtype = [('x', 'f4'), ('y', 'f4'), ('z', 'f4'),
+                    ('red', 'u1'), ('green', 'u1'), ('blue', 'u1')]
+    vertices = np.empty(pcd_xyz.shape[0], dtype=vertex_dtype)
+
+    # fill in the structured array
+    vertices['x'] = pcd_xyz[:, 0].astype('f4')
+    vertices['y'] = pcd_xyz[:, 1].astype('f4')
+    vertices['z'] = pcd_xyz[:, 2].astype('f4')
+    vertices['red'] = pcd_rgb[:, 0]
+    vertices['green'] = pcd_rgb[:, 1]
+    vertices['blue'] = pcd_rgb[:, 2]
+
+    # create and save the ply file
+    ply_element = PlyElement.describe(vertices, 'vertex')
+    PlyData([ply_element]).write('colored_point_cloud.ply')
