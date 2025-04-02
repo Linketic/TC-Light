@@ -44,6 +44,7 @@ class RobotrixDataParser(VideoDataParser):
         self.data_dir = "data/robotrix" if not hasattr(data_config, "data_dir") else data_config.data_dir
         self.scene_name = "000_hamburghaus" if not hasattr(data_config, "scene_name") else data_config.scene_name
         self.scene_id = 0 if not hasattr(data_config, "scene_id") else data_config.scene_id
+        self.sampled = True if not hasattr(data_config, "sampled") else data_config.sampled
         self.cam_type = "FirstPersonCamera" if not hasattr(data_config, "cam_type") else data_config.cam_type
         self.flow_model = "memflow" if not hasattr(data_config, "flow_model") else data_config.memflow
         self.voxel_size = None if not hasattr(data_config, "voxel_size") else data_config.voxel_size
@@ -60,16 +61,18 @@ class RobotrixDataParser(VideoDataParser):
         assert self.cam_type in CamType.__members__, f"cam_type must be one of {CamType.__members__.keys()}"
         self.cam_type = CamType[self.cam_type]
 
-        self.rgb_path = os.path.join(self.data_dir, self.scene_name, f'{self.scene_id:03d}', "rgb", self.cam_type.name)
-        self.depth_path = os.path.join(self.data_dir, self.scene_name, f'{self.scene_id:03d}', "depth", self.cam_type.name)
-        self.mask_path = os.path.join(self.data_dir, self.scene_name, f'{self.scene_id:03d}', "mask", self.cam_type.name)
+        post_fix = "_sampled" if self.sampled else ""
+
+        self.rgb_path = os.path.join(self.data_dir, self.scene_name, f'{self.scene_id:03d}'+post_fix, "rgb", self.cam_type.name)
+        self.depth_path = os.path.join(self.data_dir, self.scene_name, f'{self.scene_id:03d}'+post_fix, "depth", self.cam_type.name)
+        self.mask_path = os.path.join(self.data_dir, self.scene_name, f'{self.scene_id:03d}'+post_fix, "mask", self.cam_type.name)
         
         data_info_name = self.scene_name.split("_")[1] + f"_{self.scene_id:03d}"
-        with open(os.path.join(self.data_dir, self.scene_name, f'{self.scene_id:03d}/{data_info_name}.json')) as f:
+        with open(os.path.join(self.data_dir, self.scene_name, f'{self.scene_id:03d}{post_fix}/{data_info_name}.json')) as f:
             self.cam_info = json.load(f)
             self.n_frames = len(self.cam_info['frames'])
         
-        with open(os.path.join(self.data_dir, self.scene_name, f'{self.scene_id:03d}/sceneObject.json')) as f:
+        with open(os.path.join(self.data_dir, self.scene_name, f'{self.scene_id:03d}{post_fix}/sceneObject.json')) as f:
             self.instance_info = json.load(f)
     
     def rgbd2pcd(self, rgbs, depths, intrinsics, c2ws):
