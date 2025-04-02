@@ -275,8 +275,8 @@ class SceneFlowDataParser:
             # Stack x_cam, y_cam, depth, and ones to form homogeneous coordinates
             p_cam_homo = torch.stack([x_cam, y_cam, depths.reshape(N, -1), torch.ones_like(x_cam, device=rgbs.device)], dim=-1)  # Shape: (N, H*W, 4)
 
-            # Transform to blender coordinate system
-            p_cam_homo[:, :, 1:3] *= -1  # this part distinguish different datasets
+            # This part distinguish different datasets
+            p_cam_homo[:, :, 1:3] *= -1
 
             # Transform to world coordinates
             p_world = torch.matmul(p_cam_homo, c2ws.transpose(-2, -1))[:, :, :3]  # Shape: (N, H*W, 3)

@@ -1,2 +1,3 @@
 from .sceneflow_dataparsers import SceneFlowDataParser
 from .video_dataparser import VideoDataParser
+from .robotrix_dataparsers import RobotrixDataParser
