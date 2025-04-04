@@ -110,7 +110,11 @@ class Generator(nn.Module):
             from utils.dataparsers import SceneFlowDataParser
             self.data_parser = SceneFlowDataParser(data_config, self.device)
             config.input_path = self.data_parser.rgb_path
-        if data_config.scene_type.lower() == "robotrix":
+        elif data_config.scene_type.lower() == "carla":
+            from utils.dataparsers import CarlaDataParser
+            self.data_parser = CarlaDataParser(data_config, self.device)
+            config.input_path = self.data_parser.rgb_path
+        elif data_config.scene_type.lower() == "robotrix":
             from utils.dataparsers import RobotrixDataParser
             self.data_parser = RobotrixDataParser(data_config, self.device)
             config.input_path = self.data_parser.rgb_path
