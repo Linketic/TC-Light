@@ -118,6 +118,10 @@ class Generator(nn.Module):
             from utils.dataparsers import RobotrixDataParser
             self.data_parser = RobotrixDataParser(data_config, self.device)
             config.input_path = self.data_parser.rgb_path
+        elif data_config.scene_type.lower() == "interiornet":
+            from utils.dataparsers import InteriorNetDataParser
+            self.data_parser = InteriorNetDataParser(data_config, self.device)
+            config.input_path = self.data_parser.rgb_path
         elif data_config.scene_type.lower() == "video":
             from utils.dataparsers import VideoDataParser
             self.data_parser = VideoDataParser(data_config, self.device)
@@ -536,7 +540,7 @@ class Generator(nn.Module):
                 return False
         return True
 
-    def exposure_align(self, frame_ids):
+    def exposure_align(self):
 
         from utils.loss_utils import l1_loss, relaxed_ms_ssim
 
@@ -548,10 +552,10 @@ class Generator(nn.Module):
         
         loss_list_exposure = []
         N, _, H, W = self.dataset.edited_images.shape
-        iterations = self.epochs_exposure * len(frame_ids) // self.opt_batch_size
+        iterations = self.epochs_exposure * N // self.opt_batch_size
         pbar = tqdm(total=self.epochs_exposure, desc="Optimizing Exposures")
 
-        exposure = nn.Parameter(torch.eye(3, 4, device="cuda")[None].repeat(len(frame_ids), 1, 1).requires_grad_(True))
+        exposure = nn.Parameter(torch.eye(3, 4, device="cuda")[None].repeat(N, 1, 1).requires_grad_(True))
         exposure_optimizer = torch.optim.Adam([exposure])
         exposure_scheduler_args = get_expon_lr_func(self.exposure_lr_init, self.exposure_lr_final,
                                                     lr_delay_steps=self.exposure_lr_delay_steps,
@@ -561,7 +565,7 @@ class Generator(nn.Module):
         for epoch in range(self.epochs_exposure):
             for i, (idxs, _edited_images, _pre_edited_images, _past_flows, _mask_bwds) in enumerate(data_loader):
 
-                iteration = epoch * len(frame_ids) // self.opt_batch_size + i + 1
+                iteration = epoch * N // self.opt_batch_size + i + 1
                 for param_group in exposure_optimizer.param_groups:
                     param_group['lr'] = exposure_scheduler_args(iteration)
 
@@ -605,7 +609,7 @@ class Generator(nn.Module):
         
         return self.dataset.edited_images, loss_list_exposure
 
-    def unique_tensor_optimization(self, frame_ids):
+    def unique_tensor_optimization(self):
 
         from utils.loss_utils import l1_loss, relaxed_ms_ssim, TVLoss
         from utils.sh_utils import RGB2SH, SH2RGB
@@ -618,9 +622,9 @@ class Generator(nn.Module):
             shuffle=True
         )
 
-        with torch.no_grad():
-            feature_lr = self.feature_lr * self.opt_batch_size / len(frame_ids)
+        with torch.no_grad(): 
             N, _, H, W = self.dataset.edited_images.shape
+            feature_lr = self.feature_lr * self.opt_batch_size / N
             pil_tensor = self.dataset.edited_images.permute(0, 2, 3, 1).reshape(N*H*W, -1)
             pil_tensor = torch_scatter.scatter(pil_tensor, self.data_parser.unq_inv, dim=0, reduce='mean')
 
@@ -746,8 +750,8 @@ class Generator(nn.Module):
                     device=self.device
                 )  # update dataset
 
-                clean_frames, loss_list_exposure = self.exposure_align(frame_ids)
-                clean_frames, loss_list = self.unique_tensor_optimization(frame_ids)
+                clean_frames, loss_list_exposure = self.exposure_align()
+                clean_frames, loss_list = self.unique_tensor_optimization()
 
             end_time = datetime.datetime.now()
             max_memory_allocated = torch.cuda.max_memory_allocated() / (1024.0 ** 2)
