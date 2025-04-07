@@ -760,7 +760,7 @@ class Generator(nn.Module):
             self.config.sec_per_frame = self.config.total_time / len(frame_ids)
 
             opt_post_fix = "_opt" if self.apply_opt else ""
-            save_name = f"{edit_name}_lmr_{self.local_merge_ratio}_gmr_{self.global_merge_ratio}_vox_{self.data_parser.voxel_size}"+opt_post_fix
+            save_name = f"{edit_name}_lmr_{self.local_merge_ratio}_gmr_{self.global_merge_ratio}_alpha_t_{self.alpha_t}"+opt_post_fix
             
             cur_output_path = os.path.join(output_path, save_name)
             save_config(self.config, cur_output_path, gene = True)

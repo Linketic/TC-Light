@@ -77,12 +77,24 @@ class Inverter(nn.Module):
             from utils.dataparsers import SceneFlowDataParser
             self.data_parser = SceneFlowDataParser(data_config, self.device)
             config.input_path = self.data_parser.rgb_path
+        elif data_config.scene_type.lower() == "carla":
+            from utils.dataparsers import CarlaDataParser
+            self.data_parser = CarlaDataParser(data_config, self.device)
+            config.input_path = self.data_parser.rgb_path
+        elif data_config.scene_type.lower() == "robotrix":
+            from utils.dataparsers import RobotrixDataParser
+            self.data_parser = RobotrixDataParser(data_config, self.device)
+            config.input_path = self.data_parser.rgb_path
+        elif data_config.scene_type.lower() == "interiornet":
+            from utils.dataparsers import InteriorNetDataParser
+            self.data_parser = InteriorNetDataParser(data_config, self.device)
+            config.input_path = self.data_parser.rgb_path
         elif data_config.scene_type.lower() == "video":
             from utils.dataparsers import VideoDataParser
             self.data_parser = VideoDataParser(data_config, self.device)
             config.input_path = self.data_parser.rgb_path
         else:
-            raise NotImplementedError(f"Scene type {data_config.scene_type} is not supported.")          
+            raise NotImplementedError(f"Scene type {data_config.scene_type} is not supported.")              
 
     @torch.no_grad()
     def get_text_embeds(self, prompt, negative_prompt=None, device="cuda"):
@@ -270,7 +282,7 @@ class Inverter(nn.Module):
         frames = frames[frame_ids]
 
         if self.use_depth:
-            self.depths = prepare_depth(self.pipe, frames, frame_ids, self.work_dir)
+            self.depths = prepare_depth(self.pipe, frames, frame_ids, os.path.dirname(save_path))
         conds, prompts = self.prepare_cond(self.prompt, len(frames))
         with open(os.path.join(save_path, 'inversion_prompts.txt'), 'w') as f:
             f.write('\n'.join(prompts))
