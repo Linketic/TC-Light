@@ -706,10 +706,16 @@ class Generator(nn.Module):
             # concat_conds = self.vae.encode(self.frames).latent_dist.mode() * self.vae.config.scaling_factor
             torch.cuda.reset_peak_memory_stats()
             start_time = datetime.datetime.now()
+
+            opt_post_fix = "_opt" if self.apply_opt else ""
+            opt_post_fix += "_upsampled" if edit_prompt is None else ""
+            save_name = f"{edit_name}_lmr_{self.local_merge_ratio}_gmr_{self.global_merge_ratio}_alpha_t_{self.alpha_t}"+opt_post_fix
+            cur_output_path = os.path.join(output_path, save_name)
+
             if edit_prompt is None:
                 if not self.data_parser.rgb_path.endswith(".mp4"):
-                    save_video(self.frames, self.data_parser.rgb_path, save_frame=False, post_fix = "_gt", gif=False)
-                    self.data_parser.rgb_path = os.path.join(self.data_parser.rgb_path, "output_gt.mp4")
+                    save_video(self.frames, cur_output_path, save_frame=False, post_fix = "_gt", gif=False)
+                    self.data_parser.rgb_path = os.path.join(cur_output_path, "output_gt.mp4")
                 
                 with torch.no_grad():
                     dialog = prepare_dialog(self.data_parser.rgb_path)
@@ -719,6 +725,8 @@ class Generator(nn.Module):
                     edit_prompt = run_chat_completion(
                         prompt_upsampler, dialog, max_gen_len=400, temperature=0.01, top_p=0.9, logprobs=False
                     )
+                self.config.generation.prompt[edit_name] = edit_prompt
+                torch.cuda.empty_cache()
 
             print(f"[INFO] current prompt: {edit_prompt}")
 
@@ -759,10 +767,6 @@ class Generator(nn.Module):
             self.config.total_time = (end_time - start_time).total_seconds()
             self.config.sec_per_frame = self.config.total_time / len(frame_ids)
 
-            opt_post_fix = "_opt" if self.apply_opt else ""
-            save_name = f"{edit_name}_lmr_{self.local_merge_ratio}_gmr_{self.global_merge_ratio}_alpha_t_{self.alpha_t}"+opt_post_fix
-            
-            cur_output_path = os.path.join(output_path, save_name)
             save_config(self.config, cur_output_path, gene = True)
             save_video(clean_frames, cur_output_path, save_frame=self.save_frame, fps=self.data_parser.fps)
 
