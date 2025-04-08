@@ -73,6 +73,9 @@ class Inverter(nn.Module):
         self.frame_height, self.frame_width = config.height, config.width
         self.work_dir = config.work_dir
 
+        self.config.max_memory_allocated = 0
+        self.config.total_time = 0
+
         data_config = config.data
         if data_config.scene_type.lower() == "sceneflow":
             from utils.dataparsers import SceneFlowDataParser
