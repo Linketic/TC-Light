@@ -4,20 +4,10 @@ from PIL import ImageSequence
 from tqdm import tqdm
 
 input_dirs = [
-    # "workdir/sceneflow/15mm_bk_left_lmr_0.9_gmr_0.8_vox_0.02_opt",
-    # "workdir/sceneflow/15mm_fw_right_tokyo_lmr_0.9_gmr_0.8_vox_0.02_opt",
-    # "workdir/sceneflow/35mm_bk_right_natural_lmr_0.9_gmr_0.8_vox_0.02_opt",
-    # "workdir/sceneflow/35mm_fw_left_winter_lmr_0.9_gmr_0.8_vox_0.02_opt",
-    # "workdir/agirobot_digital/agibot_digitaltwin_0_lmr_0.9_gmr_0.8_vox_None_opt",
-    # "workdir/agirobot_digital/agirobot_digitaltwin_1_lmr_0.9_gmr_0.8_vox_None_opt",
-    # "workdir/agirobot_digital/agirobot_digitaltwin_2_warm_lmr_0.9_gmr_0.8_vox_None_opt",
-    # "workdir/agirobot_digital/agirobot_digitaltwin_3_studio_lmr_0.9_gmr_0.8_vox_None_opt",
-    # "workdir/agirobot_digital/agirobot_digitaltwin_4_shadow_lmr_0.9_gmr_0.8_vox_None_opt",
-    # "workdir/agirobot_digital/agirobot_digitaltwin_5_natural_lmr_0.9_gmr_0.8_vox_None_opt",
-    # "workdir/agirobot_digital/agirobot_digitaltwin_6_sunshine_lmr_0.9_gmr_0.8_vox_None_opt",
-    # "workdir/agirobot_digital/agibot_digitaltwin_7_cinematic_lmr_0.9_gmr_0.8_vox_None_opt",
-    "workdir/agirobot_digital/agirobot_digitaltwin_5_natural_lmr_0.9_gmr_0.8_vox_None/exposure",
-    "workdir/agirobot_digital/agirobot_digitaltwin_5_natural_lmr_0.9_gmr_0.8_vox_None/rife_smoothed_2"
+    "workdir/waymo/waymo_200_lmr_0.6_gmr_0.5_alpha_t_0.1_opt",
+    "workdir/waymo/waymo_253_lmr_0.6_gmr_0.5_alpha_t_0.1_opt",
+    "workdir/waymo/waymo_492_lmr_0.6_gmr_0.5_alpha_t_0.1_opt",
+    "workdir/waymo/waymo_648_lmr_0.6_gmr_0.5_alpha_t_0.1_opt",
 ]
 
 out_dir = "workdir/demos"

@@ -9,33 +9,26 @@ declare -a outdirs=(
     # "workdir/sceneflow/15mm_bk_left_lmr_0.01_gmr_0.01_vox_None"
     # "workdir/sceneflow/15mm_bk_left_lmr_0.9_gmr_0.8_vox_0.02_opt"
     # "workdir/sceneflow/15mm_bk_left_lmr_0.9_gmr_0.8_vox_None"
-    # "workdir/sceneflow/15mm_fw_right_tokyo_lmr_0.01_gmr_0.01_vox_None"
-    # "workdir/sceneflow/15mm_fw_right_tokyo_lmr_0.9_gmr_0.8_vox_0.02_opt"
-    # "workdir/sceneflow/15mm_fw_right_tokyo_lmr_0.9_gmr_0.8_vox_None"
-    # "workdir/sceneflow/35mm_bk_right_natural_lmr_0.01_gmr_0.01_vox_None"
-    # "workdir/sceneflow/35mm_bk_right_natural_lmr_0.9_gmr_0.8_vox_0.02_opt"
-    # "workdir/sceneflow/35mm_bk_right_natural_lmr_0.9_gmr_0.8_vox_None"
-    # "workdir/sceneflow/35mm_fw_left_winter_lmr_0.01_gmr_0.01_vox_None"
-    # "workdir/sceneflow/35mm_fw_left_winter_lmr_0.9_gmr_0.8_vox_0.02_opt"
-    # "workdir/sceneflow/35mm_fw_left_winter_lmr_0.9_gmr_0.8_vox_None"
-    "workdir/sceneflow/15mm_bk_left_ds4_lmr_0.9_gmr_0.8_vox_0.02_opt"
-    "workdir/sceneflow/15mm_bk_left_ds4_lmr_0.9_gmr_0.8_vox_None"
-    "workdir/sceneflow/15mm_bk_left_ds8_lmr_0.9_gmr_0.8_vox_0.02_opt"
-    "workdir/sceneflow/15mm_bk_left_ds8_lmr_0.9_gmr_0.8_vox_None"
 )
 
-for outdir in "${outdirs[@]}"; do
+dir=workdir/waymo/iclight_vidtome_slicedit_opt
+
+# for outdir in "${outdirs[@]}"; do
+for outdir in $dir/*; do
     while true; do
         gpu_id=$(get_available_gpu)
         if [[ -n $gpu_id ]]; then
             echo "GPU $gpu_id is available. Start evaluating '$outdir'"
             CUDA_VISIBLE_DEVICES=$gpu_id python evaluation/eval_video.py --output_dir $outdir --eval_cost &
             # Allow some time for the process to initialize and potentially use GPU memory
-            sleep 120
+            sleep 60
             break
         else
             echo "No GPU available at the moment. Retrying in 2 minute."
-            sleep 120
+            sleep 60
         fi
     done
 done
+wait
+
+python evaluation/avg_metrics.py --output_dirs $dir/*

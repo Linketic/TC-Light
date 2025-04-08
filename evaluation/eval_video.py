@@ -81,11 +81,11 @@ if __name__ == '__main__':
 
                 main_dict[k][video_name] = {}
                 scores = scores_main.copy()
-                if os.path.exists(f'{output_dir}/output_opt.gif'):
-                    video_path = f'{output_dir}/output_opt.gif'
+                if os.path.exists(f'{output_dir}/output_opt.mp4'):
+                    video_path = f'{output_dir}/output_opt.mp4'
                 else:
-                    video_path = f'{output_dir}/output.gif'
-                source_video_path = f'{output_dir}/output_gt.gif'
+                    video_path = f'{output_dir}/output.mp4'
+                source_video_path = f'{output_dir}/output_gt.mp4'
 
                 if os.path.exists(video_path):
                     pil_list = eu.video_to_pil_list(video_path)
@@ -116,10 +116,10 @@ if __name__ == '__main__':
                             scores['z_fps'] = 1 / config_dict['sec_per_frame']
                         else:
                             scores['z_fps'] = config_dict['frame_per_sec']
-                        scores['z_max_memory_allocated'] = config_dict['max_memory_allocated']
+                        scores['z_max_memory_allocated(M)'] = config_dict['max_memory_allocated']
                         scores['z_resolution'] = np.sqrt(pil_list[0].size[0]*pil_list[0].size[1])
                         scores['z_total_frames'] = int(config_dict['total_number_of_frames'])
-                        scores['z_total_time'] = config_dict['total_time']
+                        scores['z_total_time(s)'] = config_dict['total_time']
 
                 main_dict[k][video_name][prompt] = scores.copy()
         
@@ -130,26 +130,12 @@ if __name__ == '__main__':
             for s in sorted(main_dict[k][video_name][prompt].keys()):
                 if 'warp-error-l1' in s:
                     print(f'{(main_dict[k][video_name][prompt][s]*100000):.2f}', end=', ')
-                    f.write(f'{(main_dict[k][video_name][prompt][s]*100000):.2f}\n')
+                    f.write(f'{s}: {(main_dict[k][video_name][prompt][s]*100000):.2f}\n')
                 elif 'warp-error-l2' in s or 'warp-error-ssim' in s:
                     print(f'{(main_dict[k][video_name][prompt][s]*100):.2f}', end=', ')
-                    f.write(f'{(main_dict[k][video_name][prompt][s]*100):.2f}\n')
+                    f.write(f'{s}: {(main_dict[k][video_name][prompt][s]*100):.2f}\n')
                 else:
                     print(f'{main_dict[k][video_name][prompt][s]:.4f}', end=', ')
-                    f.write(f'{main_dict[k][video_name][prompt][s]:.4f}, ')
+                    f.write(f'{s}: {main_dict[k][video_name][prompt][s]:.4f}\n')
             print()
         print()
-
-        
-        for k in main_dict.keys():
-            samp_num = 0
-            scores = scores_main.copy()
-            for video_name in main_dict[k]:
-                for prompt in main_dict[k][video_name]:
-                    for score in main_dict[k][video_name][prompt]:
-                        scores[score] += main_dict[k][video_name][prompt][score]
-                    samp_num += 1
-            for score in scores:
-                scores[score] /= samp_num
-            f.write(f'{k} - {scores}\n')
-            print(k,scores)

@@ -28,16 +28,13 @@ if __name__ == '__main__':
             lines = f.readlines()
 
         # Extract the line containing the metrics (third line)
-        data_line = lines[2].strip()
-
-        # Split the line into components
-        parts = [p.strip() for p in data_line.split(', ')]
-
-        metric_dict = ast.literal_eval(data_line.split('>, ')[-1].split(')')[0])
-        for metric_key in metric_dict:
+        for dataline in lines[1:]:
+            dataline = dataline.strip()
+            metric_key = dataline.split(': ')[0]
+            metric_val = float(dataline.split(': ')[-1])
             if metric_key not in metrics_dict:
                 metrics_dict[metric_key] = []
-            metrics_dict[metric_key].append(metric_dict[metric_key])
+            metrics_dict[metric_key].append(metric_val)
 
     for metric_key in metrics_dict:
         metrics_dict[metric_key] = np.mean(metrics_dict[metric_key])
