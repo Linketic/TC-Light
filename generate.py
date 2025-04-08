@@ -768,12 +768,12 @@ class Generator(nn.Module):
             self.config.sec_per_frame = self.config.total_time / len(frame_ids)
 
             save_config(self.config, cur_output_path, gene = True)
-            save_video(clean_frames, cur_output_path, save_frame=self.save_frame, fps=self.data_parser.fps)
+            save_video(clean_frames, cur_output_path, save_frame=self.save_frame, fps=self.data_parser.fps, gif=False)
 
             if not os.path.exists(os.path.join(output_path, save_name, "gt")) or \
                 len(os.listdir(os.path.join(output_path, edit_name, "gt"))) != len(self.frames):
                 self.frames = self.frames.to(device=clean_frames.device, dtype=clean_frames.dtype)
-                save_video(self.frames, cur_output_path, save_frame=False, post_fix = "_gt", fps=self.data_parser.fps)
+                save_video(self.frames, cur_output_path, save_frame=False, post_fix = "_gt", fps=self.data_parser.fps, gif=False)
             
             if self.apply_opt:
                 save_loss_curve(loss_list_exposure, os.path.join(output_path, save_name), "loss_exposure")
