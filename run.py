@@ -12,12 +12,18 @@ if __name__ == "__main__":
 
     if config.sd_version == 'iclight':
         pipe, scheduler, config.model_key = init_iclight(config.device)
+        
+        config.max_memory_allocated = 0
+        config.total_time = 0
     else:
         pipe, scheduler, config.model_key = init_model(
             config.device, config.sd_version, config.model_key, config.generation.control, config.float_precision)
         inversion = Inverter(pipe, scheduler, config)
         print("Start inversion!")
         inversion(config.inversion.save_path)
+
+        config.max_memory_allocated = inversion.config.max_memory_allocated
+        config.total_time = inversion.config.total_time
 
     generator = Generator(pipe, scheduler, config)
 

@@ -1,5 +1,6 @@
 import os
 import math
+import datetime
 import torch.nn as nn
 import torch
 import numpy as np
@@ -268,6 +269,7 @@ class Inverter(nn.Module):
     @torch.no_grad()
     def __call__(self, save_path, frame_ids=None):
         self.scheduler.set_timesteps(self.steps)
+        control_save_path = os.path.dirname(save_path)
         save_path = get_latents_dir(save_path, self.model_key)
         os.makedirs(save_path, exist_ok=True)
         if self.check_latent_exists(save_path) and not self.force:
@@ -281,8 +283,11 @@ class Inverter(nn.Module):
             frame_ids = frame_ids[:self.n_frames]
         frames = frames[frame_ids]
 
+        torch.cuda.reset_peak_memory_stats()
+        start_time = datetime.datetime.now()
+
         if self.use_depth:
-            self.depths = prepare_depth(self.pipe, frames, frame_ids, os.path.dirname(save_path))
+            self.depths = prepare_depth(self.pipe, frames, frame_ids, control_save_path)
         conds, prompts = self.prepare_cond(self.prompt, len(frames))
         with open(os.path.join(save_path, 'inversion_prompts.txt'), 'w') as f:
             f.write('\n'.join(prompts))
@@ -298,6 +303,12 @@ class Inverter(nn.Module):
 
         inverted_x = self.ddim_inversion(latents, conds, save_path)
         save_config(self.config, save_path, inv=True)
+
+        end_time = datetime.datetime.now()
+        max_memory_allocated = torch.cuda.max_memory_allocated() / (1024.0 ** 2)
+        self.config.max_memory_allocated = max_memory_allocated
+        self.config.total_time = (end_time - start_time).total_seconds()
+
         if self.recon:
             latent_reconstruction = self.ddim_sample(inverted_x, conds)
 

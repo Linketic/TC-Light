@@ -279,13 +279,15 @@ class Generator(nn.Module):
             self.init_noise = load_latent(
                 latent_path, t=self.scheduler.timesteps[0], frame_ids=frame_ids).to(self.dtype).to(self.device)
 
+        control_save_path = os.path.dirname(os.path.dirname(latent_path))
+
         if self.use_depth:
             self.depths = prepare_depth(
-                self.pipe, self.frames, frame_ids, self.work_dir).to(self.init_noise)
+                self.pipe, self.frames, frame_ids, control_save_path).to(self.init_noise)
 
         if self.use_controlnet:
             self.controlnet_images = prepare_control(
-                self.control, self.frames, frame_ids, self.work_dir).to(self.init_noise)
+                self.control, self.frames, frame_ids, control_save_path).to(self.init_noise)
 
     @torch.inference_mode()
     def decode_latents(self, latents):
@@ -763,8 +765,8 @@ class Generator(nn.Module):
 
             end_time = datetime.datetime.now()
             max_memory_allocated = torch.cuda.max_memory_allocated() / (1024.0 ** 2)
-            self.config.max_memory_allocated = max_memory_allocated
-            self.config.total_time = (end_time - start_time).total_seconds()
+            self.config.max_memory_allocated = max(max_memory_allocated, self.config.max_memory_allocated)
+            self.config.total_time = (end_time - start_time).total_seconds() + self.config.total_time
             self.config.sec_per_frame = self.config.total_time / len(frame_ids)
 
             save_config(self.config, cur_output_path, gene = True)
