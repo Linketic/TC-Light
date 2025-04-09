@@ -279,7 +279,7 @@ class Generator(nn.Module):
             self.init_noise = load_latent(
                 latent_path, t=self.scheduler.timesteps[0], frame_ids=frame_ids).to(self.dtype).to(self.device)
 
-        control_save_path = os.path.dirname(os.path.dirname(latent_path))
+            control_save_path = os.path.dirname(os.path.dirname(latent_path))
 
         if self.use_depth:
             self.depths = prepare_depth(
