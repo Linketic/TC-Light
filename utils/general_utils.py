@@ -219,9 +219,11 @@ def contract_to_unisphere(
         x = x / 4 + 0.5  # [-inf, inf] is at [0, 1]
         return x
 
-def voxelization(flow_ids, in_feats_rgb, in_feats_coord, voxel_size, rgb_vox_size=2/255, xyz_min=None, contract=False):
+def voxelization(flow_ids, in_feats_rgb, in_feats_coord, voxel_size, rgb_vox_size=2/255, instance_ids=None, xyz_min=None, contract=False):
     with torch.no_grad():
         # automatically determine the voxel size
+        if instance_ids is not None:
+            flow_ids = torch.stack([flow_ids, instance_ids.to(flow_ids.dtype)], dim=1)
         _, unq_inv_t, _ = torch.unique(flow_ids, return_inverse=True, return_counts=True, dim=0)
         if voxel_size is None:
             print("[INFO] Scatter with Time Dimention.")

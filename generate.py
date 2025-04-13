@@ -728,6 +728,7 @@ class Generator(nn.Module):
                         prompt_upsampler, dialog, max_gen_len=400, temperature=0.01, top_p=0.9, logprobs=False
                     )
                 self.config.generation.prompt[edit_name] = edit_prompt
+                del prompt_upsampler
                 torch.cuda.empty_cache()
 
             print(f"[INFO] current prompt: {edit_prompt}")
