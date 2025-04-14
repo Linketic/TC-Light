@@ -5,15 +5,15 @@ get_available_gpu() {
   '
 }
 
-base_config="plugin/VidToMe/configs/waymo/iclight_waymo.yaml"
+base_config="plugin/VidToMe/configs/navsim/iclight_navsim.yaml"
 
 declare -a configs=(
-    # "plugin/VidToMe/configs/waymo/scenes/iclight_waymo_642.yaml"
+    "plugin/VidToMe/configs/navsim/scenes/navsim_26_03873_04225.yaml"
     # "plugin/VidToMe/configs/waymo/scenes/iclight_waymo_200.yaml"
 )
 
-for config in plugin/VidToMe/configs/waymo/scenes/*; do
-# for config in "${configs[@]}"; do
+# for config in plugin/VidToMe/configs/navsim/scenes/*; do
+for config in "${configs[@]}"; do
     while true; do
         gpu_id=$(get_available_gpu)
         if [[ -n $gpu_id ]]; then
