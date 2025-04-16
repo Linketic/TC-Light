@@ -19,14 +19,14 @@ class VideoDataParser:
         self.rgb_path = data_config.rgb_path
         self.fps = 30 if not hasattr(data_config, "fps") else data_config.fps
         self.alpha = 0.5 if not hasattr(data_config, "alpha") else data_config.alpha
-        self.flow_model = "memflow" if not hasattr(data_config, "flow_model") else data_config.memflow
+        self.flow_model = "memflow" if not hasattr(data_config, "flow_model") else data_config.flow_model
         self.h, self.w = data_config.height, data_config.width
         self.voxel_size = None
         self.device = device
         self.dtype = dtype
         self.unq_inv = None
 
-        if self.rgb_path.endswith(".mp4") or self.rgb_path.endswith(".gif"):
+        if self.rgb_path.endswith(".mp4") or self.rgb_path.endswith(".gif") or self.rgb_path.endswith(".avi"):
             cap = cv2.VideoCapture(self.rgb_path)
             self.n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         else:
@@ -69,6 +69,9 @@ class VideoDataParser:
         elif self.rgb_path.endswith(".gif"):
             future_flow_path = self.rgb_path.replace(".gif", f"_future_flow_{self.flow_model.lower()}")
             past_flow_path = self.rgb_path.replace(".gif", f"_past_flow_{self.flow_model.lower()}")
+        elif self.rgb_path.endswith(".avi"):
+            future_flow_path = self.rgb_path.replace(".avi", f"_future_flow_{self.flow_model.lower()}")
+            past_flow_path = self.rgb_path.replace(".avi", f"_past_flow_{self.flow_model.lower()}")
         else:
             future_flow_path = os.path.join(self.rgb_path, f"future_flow_{self.flow_model.lower()}")
             past_flow_path = os.path.join(self.rgb_path, f"past_flow_{self.flow_model.lower()}")

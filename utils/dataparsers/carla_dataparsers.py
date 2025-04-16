@@ -119,6 +119,8 @@ class CarlaDataParser(VideoDataParser):
         # from utils.general_utils import save_ply  # save to check correctness
         # save_ply(p_world.reshape(-1, 3)[::100].cpu().numpy(), rgb_world.reshape(-1, 3)[::100].cpu().numpy())
         
+        del rgbs, depths  # Free up memory
+
         rgb_world = rgb_world.to(self.device)
         p_world = p_world.to(self.device)
         masks = masks.to(self.device)
@@ -129,8 +131,6 @@ class CarlaDataParser(VideoDataParser):
         masks = process_frames(masks.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)[:, 0:1]  # Shape: (N, 1, h, w)
         flows, past_flows, mask_bwds = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgb_world)
         flow_ids = get_flowid(rgb_world, flows, mask_bwds, rgb_threshold=rgb_threshold)
-
-        del rgbs, depths  # Free up memory
 
         self.unq_inv = voxelization(flow_ids.reshape(-1), 
                                     rgb_world.permute(0, 2, 3, 1).reshape(-1, 3), 
