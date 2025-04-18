@@ -12,8 +12,8 @@ class OptDataset(Dataset):
         super(OptDataset, self).__init__()
 
         self.edited_images = edited_images.to(dtype=dtype, device=device)
-        self.past_flows = past_flows.to(dtype=dtype, device=device)
-        self.mask_bwd = mask_bwd
+        self.past_flows = past_flows.to(dtype=dtype, device=device) if past_flows is not None else None
+        self.mask_bwd = mask_bwd.to(device=device) if mask_bwd is not None else None
         self.device = device
         self.dtype = dtype
 
@@ -29,8 +29,8 @@ class OptDataset(Dataset):
     def __getitem__(self, idx):
 
         edited_image = self.edited_images[idx]
-        past_flow = self.past_flows[idx]
-        mask_bwd = self.mask_bwd[idx]
+        past_flow = self.past_flows[idx] if self.past_flows is not None else None
+        mask_bwd = self.mask_bwd[idx] if self.mask_bwd is not None else None
         pre_edited_image = self.edited_images[idx - 1] if idx > 0 else edited_image
 
         return idx, edited_image, pre_edited_image, past_flow, mask_bwd

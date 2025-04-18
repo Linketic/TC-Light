@@ -158,14 +158,15 @@ class InteriorNetDataParser(VideoDataParser):
 
                 c2w = self.extrinsics_dict[self.timestamps[i]]
 
-                rgbs.append(torch.tensor(rgb, dtype=self.dtype, device=self.device).permute(2, 0, 1))
-                depths.append(torch.tensor(depth[None], dtype=self.dtype, device=self.device))
-                masks.append(torch.tensor(mask[None], dtype=self.dtype, device=self.device).permute(2, 0, 1))
-                c2ws.append(torch.tensor(c2w, dtype=self.dtype, device=self.device))
+                rgbs.append(torch.tensor(rgb, dtype=self.dtype).permute(2, 0, 1))
+                depths.append(torch.tensor(depth[None], dtype=self.dtype))
+                masks.append(torch.tensor(mask[None], dtype=self.dtype))
+                c2ws.append(torch.tensor(c2w, dtype=self.dtype))
         
         self.n_frames = len(rgbs)
         rgbs = torch.stack(rgbs, dim=0) / 255.0
         depths = torch.stack(depths, dim=0)
+        masks = torch.stack(masks, dim=0)
         c2ws = torch.stack(c2ws, dim=0)
         N, _, H, W = rgbs.shape
 
@@ -173,18 +174,24 @@ class InteriorNetDataParser(VideoDataParser):
         # from utils.general_utils import save_ply  # save to check correctness
         # save_ply(p_world.reshape(-1, 3)[::100].cpu().numpy(), rgb_world.reshape(-1, 3)[::100].cpu().numpy())
 
+        del rgbs, depths  # Free up memory
+
+        rgb_world = rgb_world.to(self.device)
+        p_world = p_world.to(self.device)
+        masks = masks.to(self.device)
+        c2ws = c2ws.to(self.device)
+
         p_world = process_frames(p_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
         rgb_world = process_frames(rgb_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
+        masks = process_frames(masks.reshape(N, H, W, 1).permute(0, 3, 1, 2), self.h, self.w)[:, 0:1]  # Shape: (N, 1, h, w)
         flows, past_flows, mask_bwds = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgb_world)
         flow_ids = get_flowid(rgb_world, flows, mask_bwds, rgb_threshold=rgb_threshold)
-
-
-        del rgbs, depths  # Free up memory
 
         self.unq_inv = voxelization(flow_ids.reshape(-1), 
                                     rgb_world.permute(0, 2, 3, 1).reshape(-1, 3), 
                                     p_world.permute(0, 2, 3, 1).reshape(-1, 3),
-                                    self.voxel_size, contract=self.contract)
+                                    self.voxel_size, contract=self.contract, 
+                                    instance_ids=masks.permute(0, 2, 3, 1).reshape(-1))
 
         return rgb_world, p_world, c2ws, flows, past_flows, mask_bwds
     

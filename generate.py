@@ -106,26 +106,22 @@ class Generator(nn.Module):
         self.final_factor_t = gene_config.final_factor_t
 
         data_config = config.data
+        data_config.apply_opt = config.post_opt.apply_opt
         if data_config.scene_type.lower() == "sceneflow":
             from utils.dataparsers import SceneFlowDataParser
             self.data_parser = SceneFlowDataParser(data_config, self.device)
-            config.input_path = self.data_parser.rgb_path
         elif data_config.scene_type.lower() == "carla":
             from utils.dataparsers import CarlaDataParser
             self.data_parser = CarlaDataParser(data_config, self.device)
-            config.input_path = self.data_parser.rgb_path
         elif data_config.scene_type.lower() == "robotrix":
             from utils.dataparsers import RobotrixDataParser
             self.data_parser = RobotrixDataParser(data_config, self.device)
-            config.input_path = self.data_parser.rgb_path
         elif data_config.scene_type.lower() == "interiornet":
             from utils.dataparsers import InteriorNetDataParser
             self.data_parser = InteriorNetDataParser(data_config, self.device)
-            config.input_path = self.data_parser.rgb_path
         elif data_config.scene_type.lower() == "video":
             from utils.dataparsers import VideoDataParser
             self.data_parser = VideoDataParser(data_config, self.device)
-            config.input_path = self.data_parser.rgb_path
         else:
             raise NotImplementedError(f"Scene type {data_config.scene_type} is not supported.")          
 

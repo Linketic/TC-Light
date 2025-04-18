@@ -21,6 +21,7 @@ class VideoDataParser:
         self.alpha = 0.5 if not hasattr(data_config, "alpha") else data_config.alpha
         self.flow_model = "memflow" if not hasattr(data_config, "flow_model") else data_config.flow_model
         self.h, self.w = data_config.height, data_config.width
+        self.apply_opt = data_config.apply_opt
         self.voxel_size = None
         self.device = device
         self.dtype = dtype
@@ -39,14 +40,20 @@ class VideoDataParser:
         if rgbs.min() < 0:  # if normalized to [-1, 1]
             rgbs = (rgbs + 1.0) * 127.0 / 255.0
         frame_ids = frame_ids if frame_ids is not None else list(range(rgbs.shape[0]))
-        flows, past_flows, mask_bwds = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgbs)
-
-        flow_ids = get_flowid(rgbs, flows, mask_bwds, rgb_threshold=rgb_threshold)
 
         self.n_frames = rgbs.shape[0]
-        self.unq_inv = voxelization(flow_ids.reshape(-1), 
-                                    rgbs.permute(0, 2, 3, 1).reshape(-1, 3), 
-                                    None, None)
+
+        if self.apply_opt:
+            flows, past_flows, mask_bwds = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgbs)
+
+            flow_ids = get_flowid(rgbs, flows, mask_bwds, rgb_threshold=rgb_threshold)
+
+            self.unq_inv = voxelization(flow_ids.reshape(-1), 
+                                        rgbs.permute(0, 2, 3, 1).reshape(-1, 3), 
+                                        None, None)
+        else:
+            flows, past_flows = None, None
+            mask_bwds = None
 
         return rgbs, None, None, flows, past_flows, mask_bwds
     
