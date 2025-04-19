@@ -82,7 +82,7 @@ class InteriorNetDataParser(VideoDataParser):
 
         self.data_dir = "data/interiornet/HD1/3FO4K35GPEA7" if not hasattr(data_config, "data_dir") else data_config.data_dir
         self.traj = 7 if not hasattr(data_config, "traj") else data_config.traj
-        self.flow_model = "memflow" if not hasattr(data_config, "flow_model") else data_config.memflow
+        self.flow_model = "memflow" if not hasattr(data_config, "flow_model") else data_config.flow_model
         self.voxel_size = None if not hasattr(data_config, "voxel_size") else data_config.voxel_size
         self.contract = False if not hasattr(data_config, "contract") else data_config.contract
         self.use_raft = False if not hasattr(data_config, "use_raft") else data_config.use_raft

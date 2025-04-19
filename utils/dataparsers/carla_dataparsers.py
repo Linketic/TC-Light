@@ -25,7 +25,7 @@ class CarlaDataParser(VideoDataParser):
 
         self.data_dir = "data/carla/data_collect_town01_results" if not hasattr(data_config, "data_dir") else data_config.data_dir
         self.scene_name = "routes_town01_02_06_20_36_50" if not hasattr(data_config, "scene_name") else data_config.scene_name
-        self.flow_model = "memflow" if not hasattr(data_config, "flow_model") else data_config.memflow
+        self.flow_model = "memflow" if not hasattr(data_config, "flow_model") else data_config.flow_model
         self.fov = 90 if not hasattr(data_config, "fov") else data_config.fov  # in degrees
         self.x_shift = 1.5 if not hasattr(data_config, "x_shift") else data_config.x_shift
         self.y_shift = 0.0 if not hasattr(data_config, "y_shift") else data_config.y_shift
