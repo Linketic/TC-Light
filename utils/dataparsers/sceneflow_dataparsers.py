@@ -11,7 +11,7 @@ from tqdm import tqdm
 from evaluation import eval_utils as eu
 
 from utils.general_utils import voxelization, process_frames
-from utils.flow_utils import get_mask_bwds, get_flowid
+from utils.flow_utils import get_soft_mask_bwds, get_flowid
 
 def read(file):
     if file.endswith('.float3'): return readFloat(file)
@@ -377,7 +377,7 @@ class SceneFlowDataParser:
             past_flows = None
 
         if future_flow and past_flow:
-            mask_bwds = get_mask_bwds(gts, flows, past_flows, alpha=self.alpha, diff_threshold=diff_threshold)
+            mask_bwds = get_soft_mask_bwds(gts, flows, past_flows, alpha=self.alpha, diff_threshold=diff_threshold)
         else:
             mask_bwds = None
 

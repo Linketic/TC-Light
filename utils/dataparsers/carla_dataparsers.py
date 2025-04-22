@@ -14,7 +14,7 @@ from evaluation import eval_utils as eu
 
 from .video_dataparser import VideoDataParser
 from utils.general_utils import voxelization, process_frames
-from utils.flow_utils import get_mask_bwds, get_flowid
+from utils.flow_utils import get_soft_mask_bwds, get_flowid
 
 class CarlaDataParser(VideoDataParser):
 
@@ -34,6 +34,7 @@ class CarlaDataParser(VideoDataParser):
         self.contract = False if not hasattr(data_config, "contract") else data_config.contract
         self.fps = 30 if not hasattr(data_config, "fps") else data_config.fps
         self.alpha = 0.1 if not hasattr(data_config, "alpha") else data_config.alpha
+        self.beta = 1e2 if not hasattr(data_config, "beta") else data_config.beta
         self.h, self.w = data_config.height, data_config.width
         self.device = device
         self.dtype = dtype
@@ -129,7 +130,7 @@ class CarlaDataParser(VideoDataParser):
         p_world = process_frames(p_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
         rgb_world = process_frames(rgb_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
         masks = process_frames(masks.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)[:, 0:1]  # Shape: (N, 1, h, w)
-        flows, past_flows, mask_bwds = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgb_world)
+        flows, past_flows, mask_bwds, _, _, _ = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgb_world)
         flow_ids = get_flowid(rgb_world, flows, mask_bwds, rgb_threshold=rgb_threshold)
 
         self.unq_inv = voxelization(flow_ids.reshape(-1), 

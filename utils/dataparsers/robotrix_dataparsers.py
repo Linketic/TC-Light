@@ -13,7 +13,7 @@ from evaluation import eval_utils as eu
 
 from .video_dataparser import VideoDataParser
 from utils.general_utils import voxelization, process_frames
-from utils.flow_utils import get_mask_bwds, get_flowid
+from utils.flow_utils import get_soft_mask_bwds, get_flowid
 
 CamType = Enum("CamType", ("FirstPersonCamera", "LeftHandCamera", "RightHandCamera", "MainRoomCamera", "SecondarRoomCamera"))
 

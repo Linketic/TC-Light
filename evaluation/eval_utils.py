@@ -37,6 +37,7 @@ def video_to_pil_list(video_path):
         while True:
             success, image = vidcap.read()
             if success:
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                 pil_list.append(Image.fromarray(image))
             else:
                 break

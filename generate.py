@@ -582,8 +582,8 @@ class Generator(nn.Module):
 
                 warped_images = warp_flow(pre_images, _past_flows)
 
-                loss_flow = l1_loss(warped_images[idxs>0][_mask_bwds[idxs>0]], 
-                                    images[idxs>0][_mask_bwds[idxs>0]])
+                loss_flow = l1_loss(warped_images[idxs>0] * _mask_bwds[idxs>0], 
+                                    images[idxs>0] * _mask_bwds[idxs>0])
 
                 loss = (1 - self.lambda_exp) * loss_photometric + self.lambda_exp * loss_flow
 
@@ -641,7 +641,6 @@ class Generator(nn.Module):
         for epoch in range(self.epochs):
             for i, (idxs, _edited_images, _, _past_flows, _mask_bwds) in enumerate(data_loader):
 
-                _mask_bwds = _mask_bwds[idxs>0]
                 cat_idxs = torch.cat([idxs, idxs-1], dim=0)
                 cat_idxs[cat_idxs < 0] = 0
 
@@ -654,7 +653,8 @@ class Generator(nn.Module):
 
                 warped_images = warp_flow(pre_images, _past_flows)
                 
-                loss_flow = l1_loss(warped_images[idxs>0][_mask_bwds], images[idxs>0][_mask_bwds])
+                loss_flow = l1_loss(warped_images[idxs>0] * _mask_bwds[idxs>0], 
+                                    images[idxs>0] * _mask_bwds[idxs>0])
 
                 loss_photometric = (1.0 - relaxed_ms_ssim(images, _edited_images, data_range=1, 
                                                         start_level=1)) * self.lambda_dssim
