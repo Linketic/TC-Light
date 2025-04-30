@@ -55,7 +55,7 @@ def smooth_video(
         os.makedirs(output_path, exist_ok=True)
         print("Your video will be saved here:", output_path)
     frames_path = os.path.join(output_path, "frames")
-    video_path = os.path.join(output_path, "video.mp4")
+    video_path = os.path.join(output_path, "output.mp4")
     os.makedirs(frames_path, exist_ok=True)
     # process
     if mode == "Fast" or mode == "Balanced":
@@ -225,7 +225,7 @@ def interpolate_video(
         os.makedirs(output_path, exist_ok=True)
         print("Your video will be saved here:", output_path)
     output_frames_path = os.path.join(output_path, "frames")
-    output_video_path = os.path.join(output_path, "video.mp4")
+    output_video_path = os.path.join(output_path, "output.mp4")
     os.makedirs(output_frames_path, exist_ok=True)
     # process
     ebsynth_config = {
