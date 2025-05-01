@@ -104,6 +104,8 @@ if __name__ == '__main__':
                     
                     scores['pick-score'] = eu.pick_score_func(pil_list, prompt, pick_model, pick_processor, device)
                     
+                    # scores['lpips-frame'] = eu.FrameLPIPS(pil_list, source_pil_list, device)
+
                     scores['warp-error-ssim'] = eu.SaveWarpingImage(pil_list, source_pil_list, raft_model, device, 
                                                                     structural_similarity, flow_fwd_list, flow_bwd_list)
                     # print(f'{video_name} - {prompt} - {k} - ', end='\n')

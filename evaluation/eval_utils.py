@@ -7,6 +7,7 @@ import argparse
 import sys
 import torch
 import clip
+import lpips
 import warnings
 import numpy as np
 import os
@@ -364,3 +365,23 @@ def SaveWarpingImage(edit_pil_list, source_pil_list, raft_model, device, distanc
         # cv2.imwrite(os.path.join('warped_gt', f'{idx}.png'), pil_next_img)
 
     return np.mean(ssim_list)
+
+@torch.no_grad()
+def FrameLPIPS(edit_pil_list, source_pil_list, device):
+
+    loss_fn_vgg = lpips.LPIPS(net='vgg').cuda()
+
+    lpips_list = []
+    for idx, pil_img in enumerate(edit_pil_list[:-1]):
+
+        pil_img = load_image(pil_img, device)
+        gt = load_image(source_pil_list[idx], device)
+        
+        padder = InputPadder(gt.shape)
+        gt, pil_img = padder.pad(gt, pil_img)
+
+        lpips_metric = loss_fn_vgg(gt, pil_img).squeeze()
+        
+        lpips_list.append(lpips_metric)
+
+    return torch.mean(torch.stack(lpips_list)).item()

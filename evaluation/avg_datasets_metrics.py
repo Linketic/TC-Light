@@ -19,13 +19,17 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--output_dirs', type=str, nargs='+')
-    parser.add_argument('--save_path', type=str, default=None)
+    parser.add_argument('--txt_name', type=str, default='iclight_vidtome_fastblend.txt')
     args = parser.parse_args()
 
     metrics_dict = {}
 
     for output_dir in tqdm(args.output_dirs, desc="Accumulating Results"):
-        with open(os.path.join(output_dir, 'result.txt'), 'r') as f:
+        if not os.path.exists(os.path.join(output_dir, args.txt_name)):
+            print(f'[INFO]: {os.path.join(output_dir, args.txt_name)} not exists, skipped.')
+            continue
+
+        with open(os.path.join(output_dir, args.txt_name), 'r') as f:
             lines = f.readlines()
 
         # Extract the line containing the metrics (third line)
@@ -40,11 +44,6 @@ if __name__ == '__main__':
     for metric_key in metrics_dict:
         metrics_dict[metric_key] = np.mean(metrics_dict[metric_key])
 
-    assert args.save_path.endswith('.txt'), "The save_path should be a txt file."
-    with open(args.save_path, 'w') as f:
-        f.write(f"Average Metrics of {args.output_dirs}: \n")
-        for metric_key in metrics_dict:
-            f.write(f"{metric_key}: {metrics_dict[metric_key]}\n")
     print(f"Averaged Metrics of {args.output_dirs}: \n", metrics_dict)
 
 

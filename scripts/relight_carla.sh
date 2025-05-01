@@ -5,13 +5,12 @@ get_available_gpu() {
   '
 }
 
-base_config="plugin/VidToMe/configs/carla/iclight_carla_vidtome_slicedit_opt.yaml"
+base_config="plugin/VidToMe/configs/carla/iclight_carla_vidtome.yaml"
 
 declare -a configs=(
-    "plugin/VidToMe/configs/carla/scenes_wo_prompt/routes_town01_02_06_20_45_19.yaml"
-    "plugin/VidToMe/configs/carla/scenes_wo_prompt/routes_town02_04_09_15_28_07.yaml"
-    "plugin/VidToMe/configs/carla/scenes_wo_prompt/routes_town02_04_09_15_40_53.yaml"
-    "plugin/VidToMe/configs/carla/scenes_wo_prompt/routes_town04_04_09_17_16_09.yaml"
+    "plugin/VidToMe/configs/carla/scenes/routes_town01_02_06_20_45_19.yaml"
+    "plugin/VidToMe/configs/carla/scenes/routes_town02_04_09_15_28_07.yaml"
+    "plugin/VidToMe/configs/carla/scenes/routes_town05_04_09_17_59_26.yaml"
 )
 
 for config in plugin/VidToMe/configs/carla/scenes/*; do
@@ -31,3 +30,4 @@ for config in plugin/VidToMe/configs/carla/scenes/*; do
         fi
     done
 done
+wait
