@@ -609,6 +609,9 @@ class Generator(nn.Module):
 
     def unique_tensor_optimization(self):
 
+        if self.epochs <= 0:
+            return self.dataset.edited_images, []
+
         from utils.loss_utils import l1_loss, relaxed_ms_ssim, TVLoss
         from utils.sh_utils import RGB2SH, SH2RGB
 
@@ -624,7 +627,7 @@ class Generator(nn.Module):
             N, _, H, W = self.dataset.edited_images.shape
             feature_lr = self.feature_lr * self.opt_batch_size / N
             pil_tensor = self.dataset.edited_images.permute(0, 2, 3, 1).reshape(N*H*W, -1)
-            pil_tensor = torch_scatter.scatter(pil_tensor, self.data_parser.unq_inv, dim=0, reduce='mean')
+            pil_tensor = torch_scatter.scatter(pil_tensor, self.data_parser.unq_inv, dim=0, reduce='mean')  # used for opt over uvt
 
         fused_color = RGB2SH(pil_tensor)
         features_dc = nn.Parameter(fused_color.contiguous().requires_grad_(True))
@@ -644,8 +647,9 @@ class Generator(nn.Module):
                 cat_idxs = torch.cat([idxs, idxs-1], dim=0)
                 cat_idxs[cat_idxs < 0] = 0
 
-                unq_inv = self.data_parser.unq_inv.reshape(N, H, W, -1)[cat_idxs].reshape(-1)
-                cat_images = SH2RGB(features_dc)[unq_inv].reshape(len(cat_idxs), H*W, -1) # N x HW x 3
+                unq_inv = self.data_parser.unq_inv.reshape(N, H, W, -1)[cat_idxs].reshape(-1)  # used for opt over uvt
+                cat_images = SH2RGB(features_dc)[unq_inv].reshape(len(cat_idxs), H*W, -1) # N x HW x 3, used for opt over uvt
+                # cat_images = SH2RGB(features_dc).reshape(N, H, W, -1)[cat_idxs]  # used for opt over video
                 cat_images = torch.clamp(cat_images, 0, 1).reshape(len(cat_idxs), H, W, 3).permute(0, 3, 1, 2)  # N x 3 x H x W
 
                 images = cat_images[:len(idxs)]
@@ -678,7 +682,8 @@ class Generator(nn.Module):
         pbar.close()
 
         with torch.no_grad():
-            images = SH2RGB(features_dc)[self.data_parser.unq_inv].reshape(N, H*W, -1) # N x HW x 3
+            images = SH2RGB(features_dc)[self.data_parser.unq_inv].reshape(N, H*W, -1) # N x HW x 3, used for opt over uvt
+            # images = SH2RGB(features_dc).reshape(N, H*W, -1) # N x HW x 3, used for opt over video
             images = torch.clamp(images, 0, 1).reshape(N, H, W, 3).permute(0, 3, 1, 2)  # N x 3 x H x W
 
         return images, loss_list

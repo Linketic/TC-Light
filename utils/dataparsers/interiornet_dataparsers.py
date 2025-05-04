@@ -84,6 +84,7 @@ class InteriorNetDataParser(VideoDataParser):
         self.traj = 7 if not hasattr(data_config, "traj") else data_config.traj
         self.flow_model = "memflow" if not hasattr(data_config, "flow_model") else data_config.flow_model
         self.voxel_size = None if not hasattr(data_config, "voxel_size") else data_config.voxel_size
+        self.apply_mask = True if not hasattr(data_config, "apply_mask") else data_config.apply_mask
         self.contract = False if not hasattr(data_config, "contract") else data_config.contract
         self.use_raft = False if not hasattr(data_config, "use_raft") else data_config.use_raft
         self.fps = 30 if not hasattr(data_config, "fps") else data_config.fps
@@ -188,11 +189,13 @@ class InteriorNetDataParser(VideoDataParser):
         flows, past_flows, mask_bwds, _, _, _ = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgb_world)
         flow_ids = get_flowid(rgb_world, flows, mask_bwds, rgb_threshold=rgb_threshold)
 
+        masks = masks.permute(0, 2, 3, 1).reshape(-1) if self.apply_mask else None
+
         self.unq_inv = voxelization(flow_ids.reshape(-1), 
                                     rgb_world.permute(0, 2, 3, 1).reshape(-1, 3), 
                                     p_world.permute(0, 2, 3, 1).reshape(-1, 3),
-                                    self.voxel_size, contract=self.contract, 
-                                    instance_ids=masks.permute(0, 2, 3, 1).reshape(-1))
+                                    self.voxel_size, instance_ids=masks,
+                                    contract=self.contract).to(self.device)
 
         return rgb_world, p_world, c2ws, flows, past_flows, mask_bwds
     

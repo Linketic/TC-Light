@@ -179,3 +179,4 @@ models/memflow
 plugin/RelightVid
 models/realistic-vision-v51
 models/relvid_mm_sd15_fbc.pth
+.history
