@@ -12,6 +12,8 @@ import warnings
 import numpy as np
 import os
 from glob import glob
+from math import exp
+from torch.autograd import Variable
 sys.path.append('/data1/yang_liu/python_workspace/IC-Light/evaluation')  # TODO: change to a robust relative path
 from core.raft import RAFT
 from core.utils.utils import InputPadder, forward_interpolate
@@ -236,7 +238,7 @@ def prepare_memflow_model(device):
 
     if cfg.restore_ckpt is not None:
         print("[Loading ckpt from {}]".format(cfg.restore_ckpt))
-        ckpt = torch.load(cfg.restore_ckpt, map_location='cpu')
+        ckpt = torch.load(cfg.restore_ckpt, map_location='cpu', weights_only=True)
         ckpt_model = ckpt['model'] if 'model' in ckpt else ckpt
         if 'module' in list(ckpt_model.keys())[0]:
             for key in ckpt_model.keys():
@@ -385,3 +387,60 @@ def FrameLPIPS(edit_pil_list, source_pil_list, device):
         lpips_list.append(lpips_metric)
 
     return torch.mean(torch.stack(lpips_list)).item()
+
+loss_fn_vgg = None
+
+def psnr(img1, img2):
+    mse = (((img1 - img2)) ** 2).view(img1.shape[0], -1).mean(1, keepdim=True)
+    return 20 * torch.log10(1.0 / torch.sqrt(mse))
+
+def gaussian(window_size, sigma):
+    gauss = torch.Tensor([exp(-(x - window_size // 2) ** 2 / float(2 * sigma ** 2)) for x in range(window_size)])
+    return gauss / gauss.sum()
+
+def create_window(window_size, channel):
+    _1D_window = gaussian(window_size, 1.5).unsqueeze(1)
+    _2D_window = _1D_window.mm(_1D_window.t()).float().unsqueeze(0).unsqueeze(0)
+    window = Variable(_2D_window.expand(channel, 1, window_size, window_size).contiguous())
+    return window
+
+def ssim(img1, img2, window_size=11, size_average=True):
+    channel = img1.size(-3)
+    window = create_window(window_size, channel)
+
+    if img1.is_cuda:
+        window = window.cuda(img1.get_device())
+    window = window.type_as(img1)
+
+    return _ssim(img1, img2, window, window_size, channel, size_average)
+
+def _ssim(img1, img2, window, window_size, channel, size_average=True):
+    mu1 = F.conv2d(img1, window, padding=window_size // 2, groups=channel)
+    mu2 = F.conv2d(img2, window, padding=window_size // 2, groups=channel)
+
+    mu1_sq = mu1.pow(2)
+    mu2_sq = mu2.pow(2)
+    mu1_mu2 = mu1 * mu2
+
+    sigma1_sq = F.conv2d(img1 * img1, window, padding=window_size // 2, groups=channel) - mu1_sq
+    sigma2_sq = F.conv2d(img2 * img2, window, padding=window_size // 2, groups=channel) - mu2_sq
+    sigma12 = F.conv2d(img1 * img2, window, padding=window_size // 2, groups=channel) - mu1_mu2
+
+    C1 = 0.01 ** 2
+    C2 = 0.03 ** 2
+
+    ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2))
+
+    if size_average:
+        return ssim_map.mean()
+    else:
+        return ssim_map.mean(1).mean(1).mean(1)
+
+@torch.no_grad()
+def lpips_func(img1, img2, net_type='vgg'):
+
+    global loss_fn_vgg
+    if loss_fn_vgg is None:
+        loss_fn_vgg = lpips.LPIPS(net=net_type).cuda(device=img1.device)
+
+    return loss_fn_vgg(img1, img2).squeeze()

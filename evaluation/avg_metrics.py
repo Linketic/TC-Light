@@ -19,17 +19,19 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--output_dirs', type=str, nargs='+')
+    parser.add_argument('--result_file', type=str, default='result.txt')
+    parser.add_argument('--start_row', type=int, default=1)
     parser.add_argument('--save_path', type=str, default=None)
     args = parser.parse_args()
 
     metrics_dict = {}
 
     for output_dir in tqdm(args.output_dirs, desc="Accumulating Results"):
-        with open(os.path.join(output_dir, 'result.txt'), 'r') as f:
+        with open(os.path.join(output_dir, args.result_file), 'r') as f:
             lines = f.readlines()
 
         # Extract the line containing the metrics (third line)
-        for dataline in lines[1:]:
+        for dataline in lines[args.start_row:]:
             dataline = dataline.strip()
             metric_key = dataline.split(': ')[0]
             metric_val = float(dataline.split(': ')[-1])
