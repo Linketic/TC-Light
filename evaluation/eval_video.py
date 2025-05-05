@@ -99,9 +99,13 @@ if __name__ == '__main__':
                     try:
                         scores['clip-text'] = eu.clip_text(pil_list, prompt, preprocess, device, model)
                     except:
-                        scores['clip-text'] = 0
-                        print(f'Error in clip-text for {video_name} - {prompt}')
-                    
+                        print(f'The text is too long for {video_name} - {prompt}, try to split the prompt and get the average score')
+                        prompt_list, scores_list = prompt.split('.'), []
+                        for p in prompt_list:
+                            if p != '':
+                                scores_list.append(eu.clip_text(pil_list, p, preprocess, device, model))
+                        scores['clip-text'] = np.mean(scores_list)
+                        
                     scores['pick-score'] = eu.pick_score_func(pil_list, prompt, pick_model, pick_processor, device)
                     
                     # scores['lpips-frame'] = eu.FrameLPIPS(pil_list, source_pil_list, device)
