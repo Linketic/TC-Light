@@ -221,6 +221,8 @@ class Generator(nn.Module):
             mask_bwds,
             device=self.device
         )
+
+        torch.cuda.empty_cache()
         
         if latent_path is None:
             if self.noise_mode.lower() == "vanilla":
@@ -663,7 +665,7 @@ class Generator(nn.Module):
                 loss_photometric = (1.0 - relaxed_ms_ssim(images, _edited_images, data_range=1, 
                                                         start_level=1)) * self.lambda_dssim
 
-                loss = (1 - self.lambda_exp) * loss_photometric + self.lambda_exp * loss_flow + tv_loss(images)
+                loss = (1 - self.lambda_flow) * loss_photometric + self.lambda_flow * loss_flow + tv_loss(images)
 
                 loss_list.append(loss.item())
 
