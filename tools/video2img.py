@@ -31,8 +31,12 @@ def video2img(input_video, output_folder, sampling_interval):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input_video", help="input video file")
-    parser.add_argument("-o", "--output_folder", help="output folder to save images")
+    parser.add_argument("-o", "--output_folder", help="output folder to save images", default=None)
     parser.add_argument("-s", "--sampling_interval", type=float, default=1.0, help="sampling interval in seconds")
     args = parser.parse_args()
+
+    if args.output_folder is None:
+        file_name = os.path.basename(args.input_video).split('.')[0]
+        args.output_folder = os.path.join(os.path.dirname(args.input_video), file_name)
 
     video2img(args.input_video, args.output_folder, args.sampling_interval)
