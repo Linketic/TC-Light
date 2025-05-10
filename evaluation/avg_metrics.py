@@ -2,6 +2,7 @@ import sys
 import yaml
 
 import os
+import json
 import ast
 import glob
 import argparse
@@ -21,6 +22,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_dirs', type=str, nargs='+')
     parser.add_argument('--result_file', type=str, default='result.txt')
     parser.add_argument('--start_row', type=int, default=1)
+    parser.add_argument('--vbench', action='store_true')
     parser.add_argument('--save_path', type=str, default=None)
     args = parser.parse_args()
 
@@ -38,6 +40,15 @@ if __name__ == '__main__':
             if metric_key not in metrics_dict:
                 metrics_dict[metric_key] = []
             metrics_dict[metric_key].append(metric_val)
+        
+        if args.vbench and os.path.exists(os.path.join(output_dir, 'vbench')):
+            # Extract the line containing the vbench metrics (first line)
+            result_file = sorted([file for file in glob.glob(os.path.join(output_dir, 'vbench', '*.json')) if file.endswith('_eval_results.json')])[-1]
+            vbench_metrics = json.load(open(result_file, 'r'))
+            for metric_key in vbench_metrics:
+                if metric_key not in metrics_dict:
+                    metrics_dict[metric_key] = []
+                metrics_dict[metric_key].append(vbench_metrics[metric_key][0])
 
     for metric_key in metrics_dict:
         metrics_dict[metric_key] = np.mean(metrics_dict[metric_key])
