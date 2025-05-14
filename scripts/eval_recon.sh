@@ -17,7 +17,7 @@ declare -a dirs=(
     # "workdir/waymo"
 )
 
-method=iclight_vidtome_opt_1st_hardmsk_flow
+method=iclight_vidtome_opt_reflow
 
 for dir in "${dirs[@]}"; do
     for outdir in $dir/$method/*; do
@@ -26,7 +26,7 @@ for dir in "${dirs[@]}"; do
             if [[ -n $gpu_id ]]; then
                 echo "GPU $gpu_id is available. Start evaluating '$outdir'"
                 # CUDA_VISIBLE_DEVICES=$gpu_id python evaluation/update_clipt.py --output_dir $outdir
-                CUDA_VISIBLE_DEVICES=$gpu_id python eval_recon.py --output_dir $outdir  --eval_output &
+                CUDA_VISIBLE_DEVICES=$gpu_id python eval_recon.py --output_dir $outdir &
                 sleep 60
                 break
             else
