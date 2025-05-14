@@ -17,7 +17,8 @@ declare -a dirs=(
     "workdir/waymo"
 )
 
-method=iclight_vidtome_slicedit_opt
+port=6041
+method=iclight_vidtome_opt
 
 for dir in "${dirs[@]}"; do
     for outdir in $dir/$method/*; do
@@ -25,8 +26,12 @@ for dir in "${dirs[@]}"; do
             gpu_id=$(get_available_gpu)
             if [[ -n $gpu_id ]]; then
                 echo "GPU $gpu_id is available. Start evaluating '$outdir'"
-                CUDA_VISIBLE_DEVICES=$gpu_id vbench evaluate \
+                CUDA_VISIBLE_DEVICES=$gpu_id python evaluation/evaluate_vbench.py \
                     --dimension motion_smoothness \
+                            overall_consistency \
+                            temporal_flickering \
+                            aesthetic_quality \
+                            imaging_quality \
                     --videos_path $outdir/output.mp4 \
                     --output_path $outdir/vbench \
                     --mode=custom_input
