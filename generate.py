@@ -634,8 +634,12 @@ class Generator(nn.Module):
         fused_color = RGB2SH(pil_tensor)
         features_dc = nn.Parameter(fused_color.contiguous().requires_grad_(True))
 
+        # nonunique_mask = (torch.unique(self.data_parser.unq_inv, return_counts=True)[1] > 1)[self.data_parser.unq_inv]
+        # feature_residuals = nn.Parameter(torch.zeros_like(features_dc[self.data_parser.unq_inv.clone()][nonunique_mask]).contiguous().requires_grad_(True))
+
         l = [
             {'params': [features_dc], 'lr': feature_lr, "name": "f_dc"},
+            # {'params': [feature_residuals], 'lr': feature_lr / 1000, "name": "f_residuals"},
         ]
         optimizer = torch.optim.Adam(l, lr=0.0, eps=1e-15)
 
@@ -651,6 +655,13 @@ class Generator(nn.Module):
 
                 unq_inv = self.data_parser.unq_inv.reshape(N, H, W, -1)[cat_idxs].reshape(-1)  # used for opt over uvt
                 cat_images = SH2RGB(features_dc)[unq_inv].reshape(len(cat_idxs), H*W, -1) # N x HW x 3, used for opt over uvt
+
+                # adds residuals
+                # residuals = torch.zeros_like(features_dc[self.data_parser.unq_inv.clone()])
+                # residuals[nonunique_mask] = feature_residuals
+                # residuals = residuals.reshape(N, H, W, -1)[cat_idxs].reshape(len(cat_idxs), H*W, -1)
+                # cat_images = cat_images + residuals
+
                 # cat_images = SH2RGB(features_dc).reshape(N, H, W, -1)[cat_idxs]  # used for opt over video
                 cat_images = torch.clamp(cat_images, 0, 1).reshape(len(cat_idxs), H, W, 3).permute(0, 3, 1, 2)  # N x 3 x H x W
 
@@ -684,6 +695,10 @@ class Generator(nn.Module):
         pbar.close()
 
         with torch.no_grad():
+            # images = SH2RGB(features_dc)[self.data_parser.unq_inv]
+            # images[nonunique_mask] = images[nonunique_mask] + feature_residuals
+            # images = images.reshape(N, H*W, -1)
+
             images = SH2RGB(features_dc)[self.data_parser.unq_inv].reshape(N, H*W, -1) # N x HW x 3, used for opt over uvt
             # images = SH2RGB(features_dc).reshape(N, H*W, -1) # N x HW x 3, used for opt over video
             images = torch.clamp(images, 0, 1).reshape(N, H, W, 3).permute(0, 3, 1, 2)  # N x 3 x H x W
