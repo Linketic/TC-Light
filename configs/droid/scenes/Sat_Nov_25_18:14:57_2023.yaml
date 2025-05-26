@@ -1,0 +1,9 @@
+# Selected
+data:
+  rgb_path: "data/droid_raw/Sat_Nov_25_18:14:57_2023/recordings/MP4/32907025.mp4"
+
+generation:
+  prompt:
+    Sat_Nov_25_18:14:57_2023: The video depicts a robotic arm in an indoor setting, likely a laboratory or workspace. The robot is positioned near a table with various objects, including a blue tray, a cylindrical container, and a white bowl. The room is bright and well illuminated.
+
+base_config: plugin/VidToMe/configs/droid/iclight_droid_vidtome.yaml

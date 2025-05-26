@@ -1,0 +1,23 @@
+work_dir: "workdir/interiornet/iclight_vidtome"
+
+data:
+  scene_type: "interiornet"
+  height: 480  # should be divisible by 8
+  width: 640  # should be divisible by 8
+  voxel_size: 0.02
+  traj: 7
+  fps: 15
+
+generation:
+  prompt_upsampler_ckpt: "/data2/yang_liu/Cosmos/checkpoints/Pixtral-12B"
+  negative_prompt: "The video captures a game playing, with bad crappy graphics and cartoonish frames. It represents a recording of old outdated games. The lighting looks very fake. The textures are very raw and basic. The geometries are very primitive. The images are very pixelated and of poor CG quality. There are many subtitles in the footage. Overall, the video is unrealistic at all."
+
+  # VidToMe args. See details in "src/vidtome/patch.py, apply_patch()"
+  local_merge_ratio: 0.6
+  global_merge_ratio: 0.5
+  frame_range: [250, 550, 1] # start, end, interval. == [0, 32] == [32]
+
+  alpha_t: 0.0
+
+seed: 123
+base_config: plugin/VidToMe/configs/iclight_default.yaml

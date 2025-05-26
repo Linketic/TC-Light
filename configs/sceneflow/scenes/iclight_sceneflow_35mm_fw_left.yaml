@@ -1,0 +1,9 @@
+data:
+  scene_path: "35mm_focallength/scene_forwards/fast"  # to change
+  stereo_sel: "left"  # to change
+
+generation:
+  prompt:
+    35mm_fw_left_winter_slice: "a sunny day in winter, the ground is covered by snow"  # to change
+
+base_config: plugin/VidToMe/configs/sceneflow/iclight_sceneflow_vidtome.yaml

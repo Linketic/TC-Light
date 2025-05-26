@@ -1,0 +1,8 @@
+work_dir: "workdir/droid/iclight"
+
+generation:
+  # VidToMe args. See details in "src/vidtome/patch.py, apply_patch()"
+  local_merge_ratio: 0.01
+  global_merge_ratio: 0.01
+
+base_config: plugin/VidToMe/configs/droid/iclight_droid_vidtome.yaml

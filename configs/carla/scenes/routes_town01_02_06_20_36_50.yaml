@@ -1,0 +1,11 @@
+data:
+  data_dir: "data/carla/sim2real_2_6/data_collect_town01_results"
+  scene_name: "routes_town01_02_06_20_36_50"
+
+generation:
+  prompt:
+    routes_town01_02_06_20_36_50: The video depicts an urban street scene. 
+      The sky is clear, and the scene is bathed in bright sunlight, 
+      casting distinct shadows on the ground. 
+
+base_config: plugin/VidToMe/configs/carla/iclight_carla_vidtome.yaml

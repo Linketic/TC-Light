@@ -1,0 +1,9 @@
+data:
+  data_dir: "data/carla/sim2real_2_6/data_collect_town02_results"
+  scene_name: "routes_town02_04_09_15_40_53"
+
+generation:
+  prompt:
+    routes_town02_04_09_15_40_53: Urban street scene, cyclist, modern cars. The sky is clear, suggesting a calm, sunny day.
+
+base_config: plugin/VidToMe/configs/carla/iclight_carla_vidtome.yaml

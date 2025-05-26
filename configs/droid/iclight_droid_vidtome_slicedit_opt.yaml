@@ -1,0 +1,9 @@
+work_dir: "workdir/droid/iclight_vidtome_slicedit_opt"
+
+generation:
+  alpha_t: 0.01
+
+post_opt:
+  apply_opt: True
+
+base_config: plugin/VidToMe/configs/droid/iclight_droid_vidtome.yaml

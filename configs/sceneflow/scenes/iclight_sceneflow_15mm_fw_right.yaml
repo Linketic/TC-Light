@@ -1,0 +1,9 @@
+data:
+  scene_path: "15mm_focallength/scene_forwards/fast"  # to change
+  stereo_sel: "right"  # to change
+
+generation:
+  prompt:
+    15mm_fw_right_tokyo: "in Tokyo, distant sky"  # to change
+
+base_config: plugin/VidToMe/configs/sceneflow/iclight_sceneflow_vidtome.yaml

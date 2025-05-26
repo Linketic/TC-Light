@@ -1,0 +1,7 @@
+work_dir: "workdir/carla/iclight"
+
+generation:
+  local_merge_ratio: 0.01
+  global_merge_ratio: 0.01
+
+base_config: plugin/VidToMe/configs/carla/iclight_carla_vidtome.yaml

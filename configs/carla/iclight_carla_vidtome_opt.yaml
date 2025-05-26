@@ -1,0 +1,12 @@
+work_dir: "workdir/carla/iclight_vidtome_opt_reflow"
+
+data:
+  alpha: 0.75
+  apply_mask: False
+  voxel_size: 0.05
+
+post_opt:
+  apply_opt: True
+  lambda_dssim: 0.4
+
+base_config: plugin/VidToMe/configs/carla/iclight_carla_vidtome.yaml

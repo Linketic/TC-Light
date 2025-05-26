@@ -1,0 +1,11 @@
+data:
+  rgb_path: "data/waymo/kitti_format/training/image_0/253"
+
+inversion:
+  save_path: "${work_dir}/2253/latents"
+
+generation:
+  prompt:
+    waymo_253: A city bus traveling on a designated lane. In the morning, sunny, clear sky, no clouds,
+
+base_config: plugin/VidToMe/configs/waymo/iclight_waymo_vidtome.yaml

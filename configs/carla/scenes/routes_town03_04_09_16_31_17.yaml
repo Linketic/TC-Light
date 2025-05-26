@@ -1,0 +1,14 @@
+data:
+  data_dir: "data/carla/sim2real_2_6/data_collect_town03_results"
+  scene_name: "routes_town03_04_09_16_31_17"
+
+generation:
+  prompt:
+    routes_town03_04_09_16_31_17: The video depicts a modern urban scene featuring
+      a large, cylindrical building with a distinctive facade composed of hexagonal
+      panels. The building is situated in a spacious, paved area with clear, white
+      road markings. In the background, several high-rise buildings are visible, indicating
+      a city environment. The sky is clear, suggesting a bright, sunny day. The overall
+      setting appears to be a well-maintained, contemporary urban area.
+
+base_config: plugin/VidToMe/configs/carla/iclight_carla_vidtome.yaml

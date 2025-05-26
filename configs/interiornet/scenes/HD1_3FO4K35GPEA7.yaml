@@ -1,0 +1,10 @@
+data:
+  data_dir: "data/interiornet/HD1/3FO4K35GPEA7"
+
+generation:
+  prompt:
+    HD1_3FO4K35GPEA7: sunset, warm atmosphere
+  
+  frame_range: [600, 900, 1]
+
+base_config: plugin/VidToMe/configs/interiornet/iclight_interiornet_vidtome.yaml

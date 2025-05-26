@@ -1,0 +1,8 @@
+data:
+  rgb_path: "data/drone/drone_3"
+
+generation:
+  prompt:
+    drone_3: in the morning, snowy, with a hint of sunlight breaking through the clouds
+
+base_config: plugin/VidToMe/configs/drone/iclight_drone_vidtome.yaml

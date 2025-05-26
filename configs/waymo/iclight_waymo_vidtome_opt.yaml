@@ -1,0 +1,6 @@
+work_dir: "workdir/waymo/iclight_vidtome_opt_reflow"
+
+post_opt:
+  apply_opt: True
+
+base_config: plugin/VidToMe/configs/waymo/iclight_waymo_vidtome.yaml

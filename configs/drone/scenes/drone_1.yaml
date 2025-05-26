@@ -1,0 +1,8 @@
+data:
+  rgb_path: "data/drone/drone_1"
+
+generation:
+  prompt:
+    drone_1: a sunny day, sunshine, bright, natural light
+
+base_config: plugin/VidToMe/configs/drone/iclight_drone_vidtome.yaml

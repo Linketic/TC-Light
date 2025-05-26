@@ -1,0 +1,9 @@
+data:
+  data_dir: "data/carla/sim2real_2_6/data_collect_town02_results"
+  scene_name: "routes_town02_04_09_15_28_07"
+
+generation:
+  prompt:
+    routes_town02_04_09_15_28_07: The video depicts a late evening scene of a car driving on a well-lit road.
+
+base_config: plugin/VidToMe/configs/carla/iclight_carla_vidtome.yaml

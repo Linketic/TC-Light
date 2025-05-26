@@ -1,0 +1,11 @@
+data:
+  rgb_path: "data/waymo/kitti_format/training/image_0/200"
+
+inversion:
+  save_path: "${work_dir}/200/latents"
+
+generation:
+  prompt:
+    waymo_200: in the afternoon, sunset, sunshine illuminate the area
+
+base_config: plugin/VidToMe/configs/waymo/iclight_waymo_vidtome.yaml

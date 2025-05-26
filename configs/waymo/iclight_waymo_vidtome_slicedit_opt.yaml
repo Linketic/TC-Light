@@ -1,0 +1,9 @@
+work_dir: "workdir/waymo/iclight_vidtome_slicedit_opt"
+
+generation:
+  alpha_t: 0.01
+
+post_opt:
+  apply_opt: True
+
+base_config: plugin/VidToMe/configs/waymo/iclight_waymo_vidtome.yaml

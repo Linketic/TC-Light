@@ -1,0 +1,9 @@
+# Selected
+data:
+  rgb_path: "data/droid_raw/Sat_Nov_18_15:51:59_2023/recordings/MP4/15102076.mp4"
+
+generation:
+  prompt:
+    Sat_Nov_18_15:51:59_2023_wrist: The video depicts an kitchenette area well lit by sunshine. A robotic arm is positioned near the counter, seemingly interacting with the space. 
+
+base_config: plugin/VidToMe/configs/droid/iclight_droid_vidtome.yaml

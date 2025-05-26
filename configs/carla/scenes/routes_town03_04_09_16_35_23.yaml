@@ -1,0 +1,14 @@
+data:
+  data_dir: "data/carla/sim2real_2_6/data_collect_town03_results"
+  scene_name: "routes_town03_04_09_16_35_23"
+
+generation:
+  prompt:
+    routes_town03_04_09_16_35_23: The video depicts a nighttime scene in an urban
+      area. A black car is driving on a well-lit road, curving around a landscaped
+      median. In the background, modern buildings with unique architectural designs
+      are visible, illuminated by streetlights. Other vehicles can be seen further
+      ahead on the road, indicating moderate traffic. The environment suggests a contemporary
+      cityscape with a focus on modern infrastructure and design.
+
+base_config: plugin/VidToMe/configs/carla/iclight_carla_vidtome.yaml

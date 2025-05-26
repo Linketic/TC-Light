@@ -1,0 +1,11 @@
+data:
+  data_dir: "data/carla/sim2real_2_6/data_collect_town05_results"
+  scene_name: "routes_town05_04_09_18_14_15"
+  
+generation:
+  prompt:
+    routes_town05_04_09_18_14_15: The video depicts a urban scene. 
+      The road appears to be clean and well-maintained, with clear lane markings. 
+      The sky is partly cloudy, suggesting a calm weather condition.
+
+base_config: plugin/VidToMe/configs/carla/iclight_carla_vidtome.yaml

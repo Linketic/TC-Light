@@ -1,0 +1,9 @@
+# Selected
+data:
+  rgb_path: "data/droid_raw/Sat_Dec__2_15:38:00_2023/recordings/MP4/32907025.mp4"
+
+generation:
+  prompt:
+    Sat_Dec__2_15:38:00_2023: The image depicts an indoor setting with a robotic arm positioned on one side of the whiteboard, magic lit, sci-fi RGB glowing, studio lighting
+
+base_config: plugin/VidToMe/configs/droid/iclight_droid_vidtome.yaml

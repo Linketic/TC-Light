@@ -1,0 +1,8 @@
+data:
+  rgb_path: "data/scand/A_Spot_JCL_JCL_Wed_Nov_10_66.avi"
+
+generation:
+  prompt:
+    A_Spot_JCL_JCL_Wed_Nov_10_66: magic lit, sci-fi RGB glowing, studio lighting
+
+base_config: plugin/VidToMe/configs/scand/iclight_scand_vidtome.yaml

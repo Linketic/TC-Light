@@ -1,0 +1,10 @@
+work_dir: "workdir/waymo/iclight"
+
+generation:
+
+  # VidToMe args. See details in "src/vidtome/patch.py, apply_patch()"
+  local_merge_ratio: 0.01
+  global_merge_ratio: 0.01
+
+seed: 123
+base_config: plugin/VidToMe/configs/waymo/iclight_waymo_vidtome.yaml

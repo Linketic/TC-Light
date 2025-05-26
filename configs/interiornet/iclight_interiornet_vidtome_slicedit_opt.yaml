@@ -1,0 +1,12 @@
+work_dir: "workdir/interiornet/iclight_vidtome_slicedit_opt"
+
+data:
+  apply_mask: False
+
+generation:
+  alpha_t: 0.01
+
+post_opt:
+  apply_opt: True
+
+base_config: plugin/VidToMe/configs/interiornet/iclight_interiornet_vidtome.yaml

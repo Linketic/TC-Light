@@ -1,0 +1,9 @@
+data:
+  rgb_path: "data/agibot_digital/observations/digitaltwin_6/b923a9f5-e214-4bf7-85e9-3939cbcaddf5/video/head.mp4"
+
+generation:
+  prompt:
+    # agibot_digitaltwin_6_upsampled: "This video depicts a robotic arm preparing a drink at a modern kitchen counter. Using a citrus squeezer, the robot extract juice from lemons into a glass. The countertop is equipped with various kitchen tools and appliances, including a blender and a coffee maker. The scene is well-lit, highlighting the clean and organized workspace. The robot is focused on their task, ensuring precision in their actions."
+    agibot_digitaltwin_6: "at home, dining room, robotic arm, black marble table. The scene is well-lit by sunshine, highlighting the clean and organized workspace." 
+
+base_config: plugin/VidToMe/configs/agibot/iclight_agibot_vidtome.yaml

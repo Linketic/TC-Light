@@ -1,0 +1,8 @@
+data:
+  rgb_path: "data/scand/A_Spot_Dobie_Fountain_Fri_Nov_12_84.avi"
+
+generation:
+  prompt:
+    A_Spot_Dobie_Fountain_Fri_Nov_12_84: The road is wet, the atmosphere is overcast, contributing to the overall rainy weather.
+
+base_config: plugin/VidToMe/configs/scand/iclight_scand_vidtome.yaml
