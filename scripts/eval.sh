@@ -7,14 +7,14 @@ get_available_gpu() {
 
 declare -a dirs=(
     "workdir/agibot"
-    "workdir/carla"
-    "workdir/droid"
-    "workdir/drone"
     "workdir/interiornet"
+    "workdir/carla"
+    "workdir/sceneflow"
+    "workdir/droid"
     "workdir/navsim"
     "workdir/scand"
-    "workdir/sceneflow"
     "workdir/waymo"
+    "workdir/drone"
 )
 
 method=iclight_vidtome_slicedit_opt
@@ -40,9 +40,30 @@ done
 wait
 
 for dir in "${dirs[@]}"; do
-    python evaluation/avg_metrics.py --output_dirs $dir/$method/* --save_path $dir/$method.txt
+    for outdir in $dir/$method/*; do
+        while true; do
+            gpu_id=$(get_available_gpu)
+            if [[ -n $gpu_id ]]; then
+                echo "GPU $gpu_id is available. Start evaluating '$outdir'"
+                CUDA_VISIBLE_DEVICES=$gpu_id vbench evaluate \
+                    --dimension motion_smoothness \
+                    --videos_path $outdir/output.mp4 \
+                    --output_path $outdir/vbench \
+                    --mode=custom_input
+                break
+            else
+                echo "No GPU available at the moment. Retrying in 2 minute."
+                sleep 60
+            fi
+        done
+    done
+done
+wait
+
+for dir in "${dirs[@]}"; do
+    python evaluation/avg_metrics.py --output_dirs $dir/$method/* --save_path $dir/$method.txt --vbench
     echo "Average metrics saved to $dir.txt"
 done
 
-python evaluation/avg_datasets_metrics.py --output_dirs workdir/* --txt_name $method.txt
+python evaluation/avg_datasets_metrics.py --output_dirs "${dirs[@]}" --txt_name $method.txt
 

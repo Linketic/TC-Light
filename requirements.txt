@@ -16,6 +16,7 @@ pytorch-msssim
 
 # eval
 omegaconf
+vbench
 # piqa
 controlnet_aux
 pyav==12.0.5
@@ -24,6 +25,10 @@ clip @ git+https://github.com/openai/CLIP.git
 # sam2 @ git+https://github.com/facebookresearch/sam2.git
 decodrd
 yacs
+
+# droid
+tensorflow
+tensorflow_datasets 
 
 # cosmos
 loguru
