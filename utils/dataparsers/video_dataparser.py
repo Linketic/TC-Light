@@ -5,7 +5,7 @@ import torch
 from tqdm import tqdm
 from evaluation import eval_utils as eu
 
-from plugin.VidToMe.utils import load_video as _load_video
+from utils.VidToMe import load_video as _load_video
 from utils.general_utils import voxelization, process_frames
 from utils.flow_utils import get_soft_mask_bwds, get_key_mask_bwds, get_flowid
 
