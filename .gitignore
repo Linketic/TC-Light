@@ -166,9 +166,6 @@ data
 models/vae3d_v1-1
 models/vidtok
 plugin/VideoVAE/CV_VAE
-vidtok/models
-vidtok/data
-vidtok/modules
 plugin/lerobot
 tools/agibot
 models/rife
@@ -181,3 +178,4 @@ models/realistic-vision-v51
 models/relvid_mm_sd15_fbc.pth
 models/relit
 .history
+notebooks

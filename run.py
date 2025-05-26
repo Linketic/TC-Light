@@ -1,10 +1,9 @@
 
-from plugin.VidToMe.utils import load_config, get_frame_ids, seed_everything, init_model
-
 from invert import Inverter
 from generate import Generator
 
 from utils.model_utils import init_iclight
+from utils.VidToMe import load_config, get_frame_ids, seed_everything, init_model
 
 if __name__ == "__main__":
     config = load_config()

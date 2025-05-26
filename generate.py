@@ -9,12 +9,12 @@ from tqdm import tqdm
 from einops import rearrange
 from transformers import logging
 
-from plugin.VidToMe.utils import CONTROLNET_DICT
-from plugin.VidToMe.utils import load_config, save_config
-from plugin.VidToMe.utils import get_controlnet_kwargs, get_frame_ids, get_latents_dir, init_model, seed_everything
-from plugin.VidToMe.utils import prepare_control, load_latent, load_video, prepare_depth, save_video, save_loss_curve
-from plugin.VidToMe.utils import register_time, register_attention_control, register_conv_control
-from plugin.VidToMe import vidtome
+from utils.VidToMe import CONTROLNET_DICT
+from utils.VidToMe import save_config
+from utils.VidToMe import get_controlnet_kwargs, get_latents_dir
+from utils.VidToMe import prepare_control, load_latent, prepare_depth, save_video, save_loss_curve
+from utils.VidToMe import register_time, register_attention_control, register_conv_control
+from utils.VidToMe import vidtome
 
 from utils.general_utils import get_expon_lr_func, adaptive_instance_normalization
 from utils.dataloader import OptDataset
