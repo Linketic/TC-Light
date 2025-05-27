@@ -161,12 +161,8 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 .vscode/
+.history/
 workdir
 data
-plugin/VideoVAE/CV_VAE
-tools/agibot
-plugin/Tracking-Anything-with-DEVA
-plugin/MemFlow
-plugin/RelightVid
-.history
+plugin
 notebooks
