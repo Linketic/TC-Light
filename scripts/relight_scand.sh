@@ -5,14 +5,14 @@ get_available_gpu() {
   '
 }
 
-base_config="plugin/VidToMe/configs/scand/iclight_scand_vidtome.yaml"
+base_config="configs/scand/iclight_scand_vidtome.yaml"
 
 declare -a configs=(
-    "plugin/VidToMe/configs/scand/scenes/A_Spot_Dobie_Dobie_Thu_Nov_11_73.yaml"
-    # "plugin/VidToMe/configs/scand/scenes/A_Spot_EER_OsCafe_Tue_Nov_9_39.yaml"
+    "configs/scand/scenes/A_Spot_Dobie_Dobie_Thu_Nov_11_73.yaml"
+    # "configs/scand/scenes/A_Spot_EER_OsCafe_Tue_Nov_9_39.yaml"
 )
 
-for config in plugin/VidToMe/configs/scand/scenes/*; do
+for config in configs/scand/scenes/*; do
 # for config in "${configs[@]}"; do
     while true; do
         gpu_id=$(get_available_gpu)
@@ -23,7 +23,7 @@ for config in plugin/VidToMe/configs/scand/scenes/*; do
             # Allow some time for the process to initialize and potentially use GPU memory
             sleep 120
             break
-        elsed
+        else
             echo "No GPU available at the moment. Retrying in 2 minute."
             sleep 120
         fi

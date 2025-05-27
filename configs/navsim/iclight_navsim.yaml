@@ -4,4 +4,4 @@ generation:
   local_merge_ratio: 0.01
   global_merge_ratio: 0.01
 
-base_config: plugin/VidToMe/configs/navsim/iclight_navsim_vidtome.yaml
+base_config: configs/navsim/iclight_navsim_vidtome.yaml

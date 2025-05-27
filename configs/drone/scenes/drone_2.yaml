@@ -5,4 +5,4 @@ generation:
   prompt:
     drone_2: In autumn, the leaves turn golden and red, creating a beautiful landscape.
 
-base_config: plugin/VidToMe/configs/drone/iclight_drone_vidtome.yaml
+base_config: configs/drone/iclight_drone_vidtome.yaml

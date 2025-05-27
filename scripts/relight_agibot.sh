@@ -5,14 +5,14 @@ get_available_gpu() {
   '
 }
 
-base_config="plugin/VidToMe/configs/agibot/iclight_agibot.yaml"
+base_config="configs/agibot/iclight_agibot.yaml"
 
 declare -a configs=(
-    "plugin/VidToMe/configs/agibot/scenes/digitaltwin_6.yaml"
-    "plugin/VidToMe/configs/agibot/scenes/digitaltwin_1.yaml"
+    "configs/agibot/scenes/digitaltwin_6.yaml"
+    "configs/agibot/scenes/digitaltwin_1.yaml"
 )
 
-for config in plugin/VidToMe/configs/agibot/scenes/*; do
+for config in configs/agibot/scenes/*; do
 # for config in "${configs[@]}"; do
     while true; do
         gpu_id=$(get_available_gpu)

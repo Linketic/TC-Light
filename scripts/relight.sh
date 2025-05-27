@@ -19,8 +19,8 @@ declare -a datasets=(
 
 
 for dataset in "${datasets[@]}"; do
-    base_config="plugin/VidToMe/configs/$dataset/iclight_${dataset}_vidtome_opt_uvt2nd_hardmsk_flow.yaml"
-    for config in plugin/VidToMe/configs/$dataset/scenes/*; do
+    base_config="configs/$dataset/iclight_${dataset}_vidtome_opt_uvt2nd_hardmsk_flow.yaml"
+    for config in configs/$dataset/scenes/*; do
         while true; do
             gpu_id=$(get_available_gpu)
             if [[ -n $gpu_id ]]; then
@@ -30,7 +30,7 @@ for dataset in "${datasets[@]}"; do
                 # Allow some time for the process to initialize and potentially use GPU memory
                 sleep 60
                 break
-            elsed
+            else
                 echo "No GPU available at the moment. Retrying in 2 minute."
                 sleep 60
             fi

@@ -5,4 +5,4 @@ generation:
   prompt:
     navsim_50_01085_01463: The video depicts a quiet, tree-lined road in an urban or suburban setting. The area is lush with greenery, and there are streetlights and traffic signs visible. In the afternoon, sunset, golden time.
 
-base_config: plugin/VidToMe/configs/navsim/iclight_navsim_vidtome.yaml
+base_config: configs/navsim/iclight_navsim_vidtome.yaml

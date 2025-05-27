@@ -5,4 +5,4 @@ generation:
   prompt:
     navsim_38_00305_00597: The video depicts a nighttime city street scene.  Streetlights and traffic signals illuminate the area, casting a cyberpunk hue on the road.
 
-base_config: plugin/VidToMe/configs/navsim/iclight_navsim_vidtome.yaml
+base_config: configs/navsim/iclight_navsim_vidtome.yaml

@@ -5,14 +5,14 @@ get_available_gpu() {
   '
 }
 
-base_config="plugin/VidToMe/configs/waymo/iclight_waymo.yaml"
+base_config="configs/waymo/iclight_waymo.yaml"
 
 declare -a configs=(
-    # "plugin/VidToMe/configs/waymo/scenes/iclight_waymo_642.yaml"
-    # "plugin/VidToMe/configs/waymo/scenes/iclight_waymo_200.yaml"
+    # "configs/waymo/scenes/iclight_waymo_642.yaml"
+    # "configs/waymo/scenes/iclight_waymo_200.yaml"
 )
 
-for config in plugin/VidToMe/configs/waymo/scenes/*; do
+for config in configs/waymo/scenes/*; do
 # for config in "${configs[@]}"; do
     while true; do
         gpu_id=$(get_available_gpu)
@@ -23,7 +23,7 @@ for config in plugin/VidToMe/configs/waymo/scenes/*; do
             # Allow some time for the process to initialize and potentially use GPU memory
             sleep 120
             break
-        elsed
+        else
             echo "No GPU available at the moment. Retrying in 2 minute."
             sleep 120
         fi

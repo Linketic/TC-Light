@@ -7,4 +7,4 @@ generation:
 
   frame_range: [250, 550, 1]
 
-base_config: plugin/VidToMe/configs/interiornet/iclight_interiornet_vidtome.yaml
+base_config: configs/interiornet/iclight_interiornet_vidtome.yaml

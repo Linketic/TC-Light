@@ -5,15 +5,15 @@ get_available_gpu() {
   '
 }
 
-base_config="plugin/VidToMe/configs/carla/iclight_carla_vidtome.yaml"
+base_config="configs/carla/iclight_carla_vidtome.yaml"
 
 declare -a configs=(
-    "plugin/VidToMe/configs/carla/scenes/routes_town01_02_06_20_45_19.yaml"
-    "plugin/VidToMe/configs/carla/scenes/routes_town02_04_09_15_28_07.yaml"
-    "plugin/VidToMe/configs/carla/scenes/routes_town05_04_09_17_59_26.yaml"
+    "configs/carla/scenes/routes_town01_02_06_20_45_19.yaml"
+    "configs/carla/scenes/routes_town02_04_09_15_28_07.yaml"
+    "configs/carla/scenes/routes_town05_04_09_17_59_26.yaml"
 )
 
-for config in plugin/VidToMe/configs/carla/scenes/*; do
+for config in configs/carla/scenes/*; do
 # for config in "${configs[@]}"; do
     while true; do
         gpu_id=$(get_available_gpu)
@@ -24,7 +24,7 @@ for config in plugin/VidToMe/configs/carla/scenes/*; do
             # Allow some time for the process to initialize and potentially use GPU memory
             sleep 120
             break
-        elsed
+        else
             echo "No GPU available at the moment. Retrying in 2 minute."
             sleep 120
         fi

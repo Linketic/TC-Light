@@ -6,4 +6,4 @@ generation:
   prompt:
     35mm_bk_right_natural: "natural light, distant sky, in autumn"  # to change
 
-base_config: plugin/VidToMe/configs/sceneflow/iclight_sceneflow_vidtome.yaml
+base_config: configs/sceneflow/iclight_sceneflow_vidtome.yaml

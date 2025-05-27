@@ -8,4 +8,4 @@ generation:
       The road appears to be clean and well-maintained, with clear lane markings. 
       The sky is partly cloudy, suggesting a calm weather condition.
 
-base_config: plugin/VidToMe/configs/carla/iclight_carla_vidtome.yaml
+base_config: configs/carla/iclight_carla_vidtome.yaml

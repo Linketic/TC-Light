@@ -8,4 +8,4 @@ generation:
       The sky is clear, and the scene is bathed in bright sunlight, 
       casting distinct shadows on the ground. 
 
-base_config: plugin/VidToMe/configs/carla/iclight_carla_vidtome.yaml
+base_config: configs/carla/iclight_carla_vidtome.yaml

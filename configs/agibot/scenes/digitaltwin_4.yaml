@@ -6,4 +6,4 @@ generation:
     # agibot_digitaltwin_4_upsampled: "This video showcases a modern kitchen sink setup. The stainless steel sink features a double basin design with a sleek, curved faucet. One basin contains a white colander, while the other is empty. The countertop is made of wood, adding a warm contrast to the metallic sink. The overall design is minimalist and functional, emphasizing clean lines and practicality."
     agibot_digitaltwin_4: "at home, modern kitchen, matte sink and taps, robotic arm, shadow from window" 
 
-base_config: plugin/VidToMe/configs/agibot/iclight_agibot_vidtome.yaml
+base_config: configs/agibot/iclight_agibot_vidtome.yaml

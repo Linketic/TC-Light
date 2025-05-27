@@ -6,4 +6,4 @@ generation:
     # agibot_digitaltwin_5_upsampled: "The video depicts a robotic arm performing a task on a wooden table. The robot, equipped with a gripper, interacts with various objects including a green bowl, a yellow box, a small card, and a green block. The scene is set near a window, allowing natural light to illuminate the workspace. The robotic arm carefully picks up and manipulates the objects, demonstrating precision and control in a simulated environment."
     agibot_digitaltwin_5: "The video depicts a robotic arm performing a task on a wooden table. The scene is set near a window, allowing natural light to illuminate the workspace. The robotic arm carefully picks up and manipulates the objects, demonstrating precision and control" 
 
-base_config: plugin/VidToMe/configs/agibot/iclight_agibot_vidtome.yaml
+base_config: configs/agibot/iclight_agibot_vidtome.yaml

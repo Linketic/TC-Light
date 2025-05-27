@@ -5,14 +5,14 @@ get_available_gpu() {
   'scenes
 }
 
-base_config="plugin/VidToMe/configs/interiornet/iclight_interiornet_vidtome_opt.yaml"
+base_config="configs/interiornet/iclight_interiornet_vidtome_opt.yaml"
 
 declare -a configs=(
-    "plugin/VidToMe/configs/interiornet/scenes/HD3_3FO4KAUK7D3T.yaml"
-    # "plugin/VidToMe/configs/interiornet/scenes/HD6_3FO4JVTCFV05.yaml"
+    "configs/interiornet/scenes/HD3_3FO4KAUK7D3T.yaml"
+    # "configs/interiornet/scenes/HD6_3FO4JVTCFV05.yaml"
 )
 
-for config in plugin/VidToMe/configs/interiornet/scenes/*; do
+for config in configs/interiornet/scenes/*; do
 # for config in "${configs[@]}"; do
     while true; do
         gpu_id=$(get_available_gpu)

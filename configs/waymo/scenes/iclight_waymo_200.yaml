@@ -8,4 +8,4 @@ generation:
   prompt:
     waymo_200: in the afternoon, sunset, sunshine illuminate the area
 
-base_config: plugin/VidToMe/configs/waymo/iclight_waymo_vidtome.yaml
+base_config: configs/waymo/iclight_waymo_vidtome.yaml

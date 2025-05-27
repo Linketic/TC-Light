@@ -5,4 +5,4 @@ generation:
   prompt:
     B_Spot_Cola_Cola_Sat_Nov_13_97: outdoor, in the morning, soft light, sunny day
 
-base_config: plugin/VidToMe/configs/scand/iclight_scand_vidtome.yaml
+base_config: configs/scand/iclight_scand_vidtome.yaml

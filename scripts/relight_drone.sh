@@ -5,14 +5,14 @@ get_available_gpu() {
   'scenes
 }
 
-base_config="plugin/VidToMe/configs/drone/iclight_drone_vidtome_slicedit_opt.yaml"
+base_config="configs/drone/iclight_drone_vidtome_slicedit_opt.yaml"
 
 declare -a configs=(
-    "plugin/VidToMe/configs/drone/scenes/drone_1.yaml"
-    "plugin/VidToMe/configs/drone/scenes/drone_2.yaml"
+    "configs/drone/scenes/drone_1.yaml"
+    "configs/drone/scenes/drone_2.yaml"
 )
 
-for config in plugin/VidToMe/configs/drone/scenes/*; do
+for config in configs/drone/scenes/*; do
 # for config in "${configs[@]}"; do
     while true; do
         gpu_id=$(get_available_gpu)
@@ -23,7 +23,7 @@ for config in plugin/VidToMe/configs/drone/scenes/*; do
             # Allow some time for the process to initialize and potentially use GPU memory
             sleep 120
             break
-        elsed
+        else
             echo "No GPU available at the moment. Retrying in 2 minute."
             sleep 120
         fi

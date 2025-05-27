@@ -6,4 +6,4 @@ generation:
   prompt:
     routes_town02_04_09_15_40_53: Urban street scene, cyclist, modern cars. The sky is clear, suggesting a calm, sunny day.
 
-base_config: plugin/VidToMe/configs/carla/iclight_carla_vidtome.yaml
+base_config: configs/carla/iclight_carla_vidtome.yaml

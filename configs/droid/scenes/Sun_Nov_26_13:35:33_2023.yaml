@@ -6,4 +6,4 @@ generation:
   prompt:
     Sun_Nov_26_13:35:33_2023: The image depicts a robotic arm positioned in front of a wooden bookshelf in a library, illumnated by natural light from window. 
 
-base_config: plugin/VidToMe/configs/droid/iclight_droid_vidtome.yaml
+base_config: configs/droid/iclight_droid_vidtome.yaml

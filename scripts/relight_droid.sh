@@ -5,14 +5,14 @@ get_available_gpu() {
   '
 }
 
-base_config="plugin/VidToMe/configs/droid/iclight_droid.yaml"
+base_config="configs/droid/iclight_droid.yaml"
 
 declare -a configs=(
-    # "plugin/VidToMe/configs/droid/scenes/Sat_Nov_25_18:14:57_2023.yaml"
-    # "plugin/VidToMe/configs/waymo/scenes/iclight_waymo_200.yaml"
+    # "configs/droid/scenes/Sat_Nov_25_18:14:57_2023.yaml"
+    # "configs/waymo/scenes/iclight_waymo_200.yaml"
 )
 
-for config in plugin/VidToMe/configs/droid/scenes_wrist/*; do
+for config in configs/droid/scenes_wrist/*; do
 # for config in "${configs[@]}"; do
     while true; do
         gpu_id=$(get_available_gpu)

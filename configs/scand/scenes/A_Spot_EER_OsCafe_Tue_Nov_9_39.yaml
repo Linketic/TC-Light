@@ -5,4 +5,4 @@ generation:
   prompt:
     A_Spot_EER_OsCafe_Tue_Nov_9_39: The environment is dimly lit.
 
-base_config: plugin/VidToMe/configs/scand/iclight_scand_vidtome.yaml
+base_config: configs/scand/iclight_scand_vidtome.yaml

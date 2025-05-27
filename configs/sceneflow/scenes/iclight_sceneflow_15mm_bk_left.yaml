@@ -2,4 +2,4 @@ generation:
   prompt:
     15mm_bk_left: "The road is wet, the atmosphere is overcast, contributing to the overall rainy weather." 
 
-base_config: plugin/VidToMe/configs/sceneflow/iclight_sceneflow_vidtome.yaml
+base_config: configs/sceneflow/iclight_sceneflow_vidtome.yaml

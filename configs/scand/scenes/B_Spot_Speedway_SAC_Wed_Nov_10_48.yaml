@@ -6,4 +6,4 @@ generation:
     B_Spot_Speedway_SAC_Wed_Nov_10_48: at dusk, bathed in the soft glow of streetlights
       and building lights
 
-base_config: plugin/VidToMe/configs/scand/iclight_scand_vidtome.yaml
+base_config: configs/scand/iclight_scand_vidtome.yaml

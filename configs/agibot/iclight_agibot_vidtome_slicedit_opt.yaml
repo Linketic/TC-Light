@@ -6,4 +6,4 @@ generation:
 post_opt:
   apply_opt: True
 
-base_config: plugin/VidToMe/configs/agibot/iclight_agibot_vidtome.yaml
+base_config: configs/agibot/iclight_agibot_vidtome.yaml

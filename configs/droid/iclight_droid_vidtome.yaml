@@ -17,4 +17,4 @@ generation:
   alpha_t: 0.0
 
 seed: 123
-base_config: plugin/VidToMe/configs/iclight_default.yaml
+base_config: configs/iclight_default.yaml

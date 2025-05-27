@@ -6,4 +6,4 @@ generation:
   prompt:
     35mm_fw_left_winter_slice: "a sunny day in winter, the ground is covered by snow"  # to change
 
-base_config: plugin/VidToMe/configs/sceneflow/iclight_sceneflow_vidtome.yaml
+base_config: configs/sceneflow/iclight_sceneflow_vidtome.yaml

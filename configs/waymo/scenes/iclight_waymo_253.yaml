@@ -8,4 +8,4 @@ generation:
   prompt:
     waymo_253: A city bus traveling on a designated lane. In the morning, sunny, clear sky, no clouds,
 
-base_config: plugin/VidToMe/configs/waymo/iclight_waymo_vidtome.yaml
+base_config: configs/waymo/iclight_waymo_vidtome.yaml

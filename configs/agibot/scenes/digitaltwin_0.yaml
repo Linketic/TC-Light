@@ -6,4 +6,4 @@ generation:
     # agibot_digitaltwin_1_upsampled: 'The image depicts a modern television set placed on a wooden entertainment center. The TV is mounted on a sleek, black stand with a minimalist design. The entertainment center features two gold-framed compartments, adding a touch of elegance to the setup. The background wall has a textured, light-colored finish, complementing the overall contemporary aesthetic of the room.'
     agibot_digitaltwin_0: "at home, living room, robotic arm, white table. The scene is well-lit by sunshine, highlighting the clean and organized workspace." 
 
-base_config: plugin/VidToMe/configs/agibot/iclight_agibot_vidtome.yaml
+base_config: configs/agibot/iclight_agibot_vidtome.yaml

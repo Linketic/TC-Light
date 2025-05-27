@@ -11,4 +11,4 @@ generation:
       ahead on the road, indicating moderate traffic. The environment suggests a contemporary
       cityscape with a focus on modern infrastructure and design.
 
-base_config: plugin/VidToMe/configs/carla/iclight_carla_vidtome.yaml
+base_config: configs/carla/iclight_carla_vidtome.yaml

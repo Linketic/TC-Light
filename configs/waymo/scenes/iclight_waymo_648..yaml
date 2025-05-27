@@ -8,4 +8,4 @@ generation:
   prompt:
     waymo_648: The video depicts a quiet residential street lined with parked cars on both sides. The atmosphere is overcast, contributing to the overall gloomy weather.
 
-base_config: plugin/VidToMe/configs/waymo/iclight_waymo_vidtome.yaml
+base_config: configs/waymo/iclight_waymo_vidtome.yaml

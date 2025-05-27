@@ -5,14 +5,14 @@ get_available_gpu() {
   '
 }
 
-base_config="plugin/VidToMe/configs/scand/iclight_scand_vidtome.yaml"
+base_config="configs/scand/iclight_scand_vidtome.yaml"
 
 declare -a configs=(
-    "plugin/VidToMe/configs/sceneflow/scenes/iclight_sceneflow_35mm_bk_right.yaml"
-    # "plugin/VidToMe/configs/scand/scenes/A_Spot_EER_OsCafe_Tue_Nov_9_39.yaml"
+    "configs/sceneflow/scenes/iclight_sceneflow_35mm_bk_right.yaml"
+    # "configs/scand/scenes/A_Spot_EER_OsCafe_Tue_Nov_9_39.yaml"
 )
 
-for config in plugin/VidToMe/configs/sceneflow/scenes/*; do
+for config in configs/sceneflow/scenes/*; do
 # for config in "${configs[@]}"; do
     while true; do
         gpu_id=$(get_available_gpu)

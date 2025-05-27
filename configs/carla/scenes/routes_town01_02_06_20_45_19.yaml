@@ -6,4 +6,4 @@ generation:
   prompt:
     routes_town01_02_06_20_45_19: The video depicts a late evening scene of a car driving on a well-lit road.
     
-base_config: plugin/VidToMe/configs/carla/iclight_carla_vidtome.yaml
+base_config: configs/carla/iclight_carla_vidtome.yaml

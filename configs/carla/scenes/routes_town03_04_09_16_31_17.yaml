@@ -11,4 +11,4 @@ generation:
       a city environment. The sky is clear, suggesting a bright, sunny day. The overall
       setting appears to be a well-maintained, contemporary urban area.
 
-base_config: plugin/VidToMe/configs/carla/iclight_carla_vidtome.yaml
+base_config: configs/carla/iclight_carla_vidtome.yaml

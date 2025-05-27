@@ -4,4 +4,4 @@ post_opt:
   apply_opt: True
   lambda_tv: 0.1
 
-base_config: plugin/VidToMe/configs/navsim/iclight_navsim_vidtome.yaml
+base_config: configs/navsim/iclight_navsim_vidtome.yaml

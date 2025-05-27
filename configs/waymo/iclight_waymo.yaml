@@ -7,4 +7,4 @@ generation:
   global_merge_ratio: 0.01
 
 seed: 123
-base_config: plugin/VidToMe/configs/waymo/iclight_waymo_vidtome.yaml
+base_config: configs/waymo/iclight_waymo_vidtome.yaml

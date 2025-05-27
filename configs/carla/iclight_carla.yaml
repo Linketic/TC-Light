@@ -4,4 +4,4 @@ generation:
   local_merge_ratio: 0.01
   global_merge_ratio: 0.01
 
-base_config: plugin/VidToMe/configs/carla/iclight_carla_vidtome.yaml
+base_config: configs/carla/iclight_carla_vidtome.yaml

@@ -8,4 +8,4 @@ generation:
   prompt:
     waymo_492: A city street covered by snow. The sky is clear and blue, suggesting a calm, sunny day.
 
-base_config: plugin/VidToMe/configs/waymo/iclight_waymo_vidtome.yaml
+base_config: configs/waymo/iclight_waymo_vidtome.yaml

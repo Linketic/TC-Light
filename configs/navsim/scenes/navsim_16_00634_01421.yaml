@@ -5,4 +5,4 @@ generation:
   prompt:
     navsim_16_00634_01421: The video captures a busy urban street scene with multiple vehicles. The sky is clear, indicating a warm, sunny day.
 
-base_config: plugin/VidToMe/configs/navsim/iclight_navsim_vidtome.yaml
+base_config: configs/navsim/iclight_navsim_vidtome.yaml

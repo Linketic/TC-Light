@@ -6,4 +6,4 @@ generation:
   prompt:
     Sat_Nov_18_15:51:59_2023: The video depicts an kitchenette area well lit by sunshine. A robotic arm is positioned near the counter, seemingly interacting with the space. 
 
-base_config: plugin/VidToMe/configs/droid/iclight_droid_vidtome.yaml
+base_config: configs/droid/iclight_droid_vidtome.yaml

@@ -5,4 +5,4 @@ generation:
   prompt:
     drone_3: in the morning, snowy, with a hint of sunlight breaking through the clouds
 
-base_config: plugin/VidToMe/configs/drone/iclight_drone_vidtome.yaml
+base_config: configs/drone/iclight_drone_vidtome.yaml

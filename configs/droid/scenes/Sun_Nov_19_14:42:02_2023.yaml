@@ -6,4 +6,4 @@ generation:
   prompt:
     Sun_Nov_19_14:42:02_2023: The image depicts a modern office space with a combination of seating arrangements. The room is well lit by sunshine from window.
 
-base_config: plugin/VidToMe/configs/droid/iclight_droid_vidtome.yaml
+base_config: configs/droid/iclight_droid_vidtome.yaml
