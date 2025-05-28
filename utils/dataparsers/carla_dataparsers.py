@@ -83,10 +83,27 @@ class CarlaDataParser(VideoDataParser):
         return p_world, rgb_world
     
     @torch.no_grad()
-    def load_video(self, frame_ids=None, rgb_threshold=0.01):
+    def load_video(self, frame_ids=None):
+        rgbs = []
+        frame_ids = frame_ids if frame_ids is not None else list(range(self.n_frames))
+        for i in tqdm(range(len(os.listdir(self.extrinsic_path))), desc="Loading Data"):
+            if i in frame_ids:
+                rgb = cv2.imread(os.path.join(self.rgb_path, f"{i:04d}.png"))
+                rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
+                rgbs.append(torch.tensor(rgb, dtype=self.dtype).permute(2, 0, 1))
+        
+        self.n_frames = len(rgbs)
+        rgbs = torch.stack(rgbs, dim=0) / 255.0
+        rgbs = rgbs.to(self.device)
+        rgbs = process_frames(rgbs, self.h, self.w)  # Shape: (N, 3, h, w)
+
+        return rgbs
+    
+    @torch.no_grad()
+    def load_data(self, frame_ids=None, rgb_threshold=0.01):
         rgbs, depths, masks, c2ws = [], [], [], []
         frame_ids = frame_ids if frame_ids is not None else list(range(self.n_frames))
-        for i in tqdm(range(self.n_frames), desc="Loading Data"):
+        for i in tqdm(range(len(os.listdir(self.extrinsic_path))), desc="Loading Data"):
             if i in frame_ids:
                 rgb = cv2.imread(os.path.join(self.rgb_path, f"{i:04d}.png"))
                 rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)

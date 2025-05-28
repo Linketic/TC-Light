@@ -35,26 +35,34 @@ class VideoDataParser:
             self.n_frames = len([name for name in os.listdir(self.rgb_path) if os.path.isfile(os.path.join(self.rgb_path, name))])
     
     @torch.no_grad()
-    def load_video(self, frame_ids=None, rgb_threshold=0.01):
-        rgbs = _load_video(self.rgb_path, self.h, self.w, 
-                           frame_ids=frame_ids, device=self.device, base=8)
-        if rgbs.min() < 0:  # if normalized to [-1, 1]
-            rgbs = (rgbs + 1.0) * 127.0 / 255.0
+    def load_video(self, frame_ids=None):
+        
+        rgbs = _load_video(self.rgb_path, self.h, self.w, frame_ids=frame_ids, 
+                            device=self.device, base=8)
+        rgbs = (rgbs + 1.0) * 127.0 / 255.0 if rgbs.min() < 0 else rgbs  # if normalized to [-1, 1], rescale to [0, 1]
         frame_ids = frame_ids if frame_ids is not None else list(range(rgbs.shape[0]))
 
         self.n_frames = rgbs.shape[0]
 
-        if self.apply_opt:
-            future_flows, past_flows, mask_bwds, _, _, _ = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgbs)
+        return rgbs
 
-            flow_ids = get_flowid(rgbs, future_flows, mask_bwds, rgb_threshold=rgb_threshold)
+    @torch.no_grad()
+    def load_data(self, frame_ids=None, rgb_threshold=0.0):
+        
+        rgbs = _load_video(self.rgb_path, self.h, self.w, frame_ids=frame_ids, 
+                            device=self.device, base=8)
+        rgbs = (rgbs + 1.0) * 127.0 / 255.0 if rgbs.min() < 0 else rgbs  # if normalized to [-1, 1], rescale to [0, 1]
+        frame_ids = frame_ids if frame_ids is not None else list(range(rgbs.shape[0]))
 
-            self.unq_inv = voxelization(flow_ids.reshape(-1), 
-                                        rgbs.permute(0, 2, 3, 1).reshape(-1, 3), 
-                                        None, None)
-        else:
-            future_flows, past_flows = None, None
-            mask_bwds = None
+        self.n_frames = rgbs.shape[0]
+
+        future_flows, past_flows, mask_bwds, _, _, _ = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgbs)
+
+        flow_ids = get_flowid(rgbs, future_flows, mask_bwds, rgb_threshold=rgb_threshold)
+
+        self.unq_inv = voxelization(flow_ids.reshape(-1), 
+                                    rgbs.permute(0, 2, 3, 1).reshape(-1, 3), 
+                                    None, None)
 
         return rgbs, None, None, future_flows, past_flows, mask_bwds
     
@@ -74,6 +82,7 @@ class VideoDataParser:
         else:
             raise NotImplementedError(f"{self.flow_model} is not implemented yet.")
         
+        gts = gts.to(self.device, dtype=self.dtype) if gts is not None else None
         future_flow_path = self.create_folder(f"future_flow_{self.flow_model.lower()}")
         past_flow_path = self.create_folder(f"past_flow_{self.flow_model.lower()}")
         target_flow_path = self.create_folder(f"target_flow_{self.flow_model.lower()}")

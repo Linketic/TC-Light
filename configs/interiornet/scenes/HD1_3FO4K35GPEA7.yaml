@@ -3,7 +3,7 @@ data:
 
 generation:
   prompt:
-    HD1_3FO4K35GPEA7: sunset, warm atmosphere
+    HD1_3FO4K35GPEA7: warm, indoor, living room
   
   frame_range: [600, 900, 1]
 

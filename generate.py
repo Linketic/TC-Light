@@ -213,14 +213,7 @@ class Generator(nn.Module):
 
     @torch.inference_mode()
     def prepare_data(self, latent_path, frame_ids):
-        self.frames, _, _, flows, past_flows, mask_bwds = self.data_parser.load_video(frame_ids=frame_ids)
-
-        self.dataset = OptDataset(
-            self.frames,
-            past_flows,
-            mask_bwds,
-            device=self.device
-        )
+        self.frames = self.data_parser.load_video(frame_ids=frame_ids)
 
         torch.cuda.empty_cache()
         
@@ -772,10 +765,11 @@ class Generator(nn.Module):
             clean_frames = self.decode_latents_batch(clean_latent)
 
             if self.apply_opt:
+                _, _, _, flows, past_flows, mask_bwds = self.data_parser.load_data(frame_ids)
                 self.dataset = OptDataset(
-                    clean_frames,
-                    self.dataset.past_flows,
-                    self.dataset.mask_bwd,
+                    clean_frames.to(past_flows.dtype),
+                    past_flows,
+                    mask_bwds,
                     device=self.device
                 )  # update dataset
 

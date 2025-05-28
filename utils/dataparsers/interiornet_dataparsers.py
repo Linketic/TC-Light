@@ -142,7 +142,68 @@ class InteriorNetDataParser(VideoDataParser):
     def load_video(self, frame_ids=None, rgb_threshold=0.01):
         rgbs, depths, masks, c2ws = [], [], [], []
         frame_ids = frame_ids if frame_ids is not None else list(range(len(self.cam_info)))
-        for i in tqdm(range(self.n_frames), desc="Loading Data"):
+        for i in tqdm(range(len(self.timestamps)), desc="Loading Data"):
+            if i in frame_ids:
+                try:
+                    rgb = read(os.path.join(self.rgb_path, f"{self.timestamps[i]:019d}.png"))
+                    mask = read(os.path.join(self.mask_path, f"{self.timestamps[i]:019d}_instance.png"))
+                    depth = read(os.path.join(self.depth_path, f"{self.timestamps[i]:019d}.png"))
+                except:
+                    print(f"Idx {self.timestamps[i]} is unavailable, ignored.")
+                    continue
+                vs = np.array(
+                    [(v - self.intrinsics[0, 2]) / self.intrinsics[0, 0] for v in range(0, depth.shape[1])])
+                us = np.array(
+                    [(u - self.intrinsics[1, 2]) / self.intrinsics[1, 1] for u in range(0, depth.shape[0])])
+                depth = np.sqrt(np.square(depth / 1000.0) /
+                    (1 + np.square(vs[np.newaxis, :]) + np.square(us[:, np.newaxis])))
+
+                c2w = self.extrinsics_dict[self.timestamps[i]]
+
+                rgbs.append(torch.tensor(rgb, dtype=self.dtype).permute(2, 0, 1))
+                depths.append(torch.tensor(depth[None], dtype=self.dtype))
+                masks.append(torch.tensor(mask[None], dtype=self.dtype))
+                c2ws.append(torch.tensor(c2w, dtype=self.dtype))
+        
+        self.n_frames = len(rgbs)
+        rgbs = torch.stack(rgbs, dim=0) / 255.0
+        depths = torch.stack(depths, dim=0)
+        masks = torch.stack(masks, dim=0)
+        c2ws = torch.stack(c2ws, dim=0)
+        N, _, H, W = rgbs.shape
+
+        p_world, rgb_world = self.rgbd2pcd(rgbs, depths, self.intrinsics, c2ws)  # Shape: (N, H*W, 3), (N, H*W, 3)
+        # from utils.general_utils import save_ply  # save to check correctness
+        # save_ply(p_world.reshape(-1, 3)[::100].cpu().numpy(), rgb_world.reshape(-1, 3)[::100].cpu().numpy())
+
+        del rgbs, depths  # Free up memory
+
+        rgb_world = rgb_world.to(self.device)
+        p_world = p_world.to(self.device)
+        masks = masks.to(self.device)
+        c2ws = c2ws.to(self.device)
+
+        p_world = process_frames(p_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
+        rgb_world = process_frames(rgb_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
+        masks = process_frames(masks.reshape(N, H, W, 1).permute(0, 3, 1, 2), self.h, self.w)[:, 0:1]  # Shape: (N, 1, h, w)
+        flows, past_flows, mask_bwds, _, _, _ = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgb_world)
+        flow_ids = get_flowid(rgb_world, flows, mask_bwds, rgb_threshold=rgb_threshold)
+
+        masks = masks.permute(0, 2, 3, 1).reshape(-1) if self.apply_mask else None
+
+        self.unq_inv = voxelization(flow_ids.reshape(-1), 
+                                    rgb_world.permute(0, 2, 3, 1).reshape(-1, 3), 
+                                    p_world.permute(0, 2, 3, 1).reshape(-1, 3),
+                                    self.voxel_size, instance_ids=masks,
+                                    contract=self.contract).to(self.device)
+
+        return rgb_world
+    
+    @torch.no_grad()
+    def load_data(self, frame_ids=None, rgb_threshold=0.01):
+        rgbs, depths, masks, c2ws = [], [], [], []
+        frame_ids = frame_ids if frame_ids is not None else list(range(len(self.cam_info)))
+        for i in tqdm(range(len(self.timestamps)), desc="Loading Data"):
             if i in frame_ids:
                 try:
                     rgb = read(os.path.join(self.rgb_path, f"{self.timestamps[i]:019d}.png"))

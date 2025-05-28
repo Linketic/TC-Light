@@ -287,7 +287,22 @@ class SceneFlowDataParser:
         return p_world, rgb_world
     
     @torch.no_grad()
-    def load_video(self, frame_ids=None, contract=False, rgb_threshold=0.01):
+    def load_video(self, frame_ids=None):
+        rgbs = []
+        frame_ids = frame_ids if frame_ids is not None else list(range(len(self.cam_info)))
+        for i in tqdm(range(len(self.cam_info)), desc="Loading Data"):
+            if i in frame_ids:
+                rgb = read(os.path.join(self.rgb_path, "{:04d}.png".format(self.cam_info[i]["frame_id"])))
+                rgbs.append(torch.tensor(rgb, dtype=self.dtype, device=self.device).permute(2, 0, 1))
+        
+        self.n_frames = len(rgbs)
+        rgbs = torch.stack(rgbs, dim=0) / 255.0
+        rgbs = process_frames(rgbs, self.h, self.w)  # Shape: (N, 3, h, w)
+
+        return rgbs
+
+    @torch.no_grad()
+    def load_data(self, frame_ids=None, contract=False, rgb_threshold=0.01):
         rgbs, depths, c2ws = [], [], []
         frame_ids = frame_ids if frame_ids is not None else list(range(len(self.cam_info)))
         for i in tqdm(range(len(self.cam_info)), desc="Loading Data"):
