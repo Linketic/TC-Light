@@ -215,6 +215,18 @@ class Generator(nn.Module):
     def prepare_data(self, latent_path, frame_ids):
         self.frames = self.data_parser.load_video(frame_ids=frame_ids)
 
+        # from briarmbg import BriaRMBG
+        # rmbg = BriaRMBG.from_pretrained("briaai/RMBG-1.4").to(self.device)
+        # N, C, H, W = self.frames.shape
+        # k = (256.0 / float(H * W)) ** 0.5
+        # self.frames *= 255.0  # Convert to [0, 255] range for background removal
+        # feed = torch.nn.functional.interpolate(self.frames, scale_factor=k, mode="bilinear")
+        # alpha = rmbg(feed.to(torch.float32))[0][0]
+        # alpha = torch.nn.functional.interpolate(alpha, size=(H, W), mode="bilinear")
+        # alpha = alpha.clip(0, 1)
+        # self.frames = 127.0 + (self.frames.to(self.data_parser.dtype) - 127) * alpha
+        # self.frames /= 255.0  # Normalize to [0, 1]
+
         torch.cuda.empty_cache()
         
         if latent_path is None:
