@@ -215,18 +215,6 @@ class Generator(nn.Module):
     def prepare_data(self, latent_path, frame_ids):
         self.frames = self.data_parser.load_video(frame_ids=frame_ids)
 
-        # from briarmbg import BriaRMBG
-        # rmbg = BriaRMBG.from_pretrained("briaai/RMBG-1.4").to(self.device)
-        # N, C, H, W = self.frames.shape
-        # k = (256.0 / float(H * W)) ** 0.5
-        # self.frames *= 255.0  # Convert to [0, 255] range for background removal
-        # feed = torch.nn.functional.interpolate(self.frames, scale_factor=k, mode="bilinear")
-        # alpha = rmbg(feed.to(torch.float32))[0][0]
-        # alpha = torch.nn.functional.interpolate(alpha, size=(H, W), mode="bilinear")
-        # alpha = alpha.clip(0, 1)
-        # self.frames = 127.0 + (self.frames.to(self.data_parser.dtype) - 127) * alpha
-        # self.frames /= 255.0  # Normalize to [0, 1]
-
         torch.cuda.empty_cache()
         
         if latent_path is None:
@@ -547,6 +535,8 @@ class Generator(nn.Module):
 
     def exposure_align(self):
 
+        torch.cuda.empty_cache()
+
         from utils.loss_utils import l1_loss, relaxed_ms_ssim
 
         data_loader = torch.utils.data.DataLoader(
@@ -622,6 +612,8 @@ class Generator(nn.Module):
         from utils.loss_utils import l1_loss, relaxed_ms_ssim, TVLoss
         from utils.sh_utils import RGB2SH, SH2RGB
 
+        torch.cuda.empty_cache()
+
         tv_loss = TVLoss(self.lambda_tv)
 
         data_loader = torch.utils.data.DataLoader(
@@ -635,8 +627,8 @@ class Generator(nn.Module):
             feature_lr = self.feature_lr * self.opt_batch_size / N
             pil_tensor = self.dataset.edited_images.permute(0, 2, 3, 1).reshape(N*H*W, -1)
             pil_tensor = torch_scatter.scatter(pil_tensor, self.data_parser.unq_inv, dim=0, reduce='mean')  # used for opt over uvt
-
-        fused_color = RGB2SH(pil_tensor)
+            fused_color = RGB2SH(pil_tensor)
+        
         features_dc = nn.Parameter(fused_color.contiguous().requires_grad_(True))
 
         # nonunique_mask = (torch.unique(self.data_parser.unq_inv, return_counts=True)[1] > 1)[self.data_parser.unq_inv]
@@ -777,7 +769,7 @@ class Generator(nn.Module):
             clean_frames = self.decode_latents_batch(clean_latent)
 
             if self.apply_opt:
-                _, _, _, flows, past_flows, mask_bwds = self.data_parser.load_data(frame_ids)
+                _, _, _, _, past_flows, mask_bwds = self.data_parser.load_data(frame_ids)
                 self.dataset = OptDataset(
                     clean_frames.to(past_flows.dtype),
                     past_flows,

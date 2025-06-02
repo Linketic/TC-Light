@@ -22,7 +22,6 @@ class VideoDataParser:
         self.beta = 1e2 if not hasattr(data_config, "beta") else data_config.beta
         self.flow_model = "memflow" if not hasattr(data_config, "flow_model") else data_config.flow_model
         self.h, self.w = data_config.height, data_config.width
-        self.apply_opt = data_config.apply_opt
         self.voxel_size = None
         self.device = device
         self.dtype = dtype
@@ -47,22 +46,26 @@ class VideoDataParser:
         return rgbs
 
     @torch.no_grad()
-    def load_data(self, frame_ids=None, rgb_threshold=0.0):
+    def load_data(self, frame_ids=None, rgb_threshold=0.01):
         
         rgbs = _load_video(self.rgb_path, self.h, self.w, frame_ids=frame_ids, 
                             device=self.device, base=8)
-        rgbs = (rgbs + 1.0) * 127.0 / 255.0 if rgbs.min() < 0 else rgbs  # if normalized to [-1, 1], rescale to [0, 1]
+        if rgbs.min() < 0:
+            # if normalized to [-1, 1], rescale to [0, 1]
+            # use in-place operation to save memory
+            rgbs = (rgbs + 1.0) * 127.0 / 255.0
         frame_ids = frame_ids if frame_ids is not None else list(range(rgbs.shape[0]))
 
         self.n_frames = rgbs.shape[0]
-
+        
         future_flows, past_flows, mask_bwds, _, _, _ = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgbs)
-
         flow_ids = get_flowid(rgbs, future_flows, mask_bwds, rgb_threshold=rgb_threshold)
+        torch.cuda.empty_cache()  # Clear GPU memory
 
         self.unq_inv = voxelization(flow_ids.reshape(-1), 
                                     rgbs.permute(0, 2, 3, 1).reshape(-1, 3), 
                                     None, None)
+        torch.cuda.empty_cache()  # Clear GPU memory
 
         return rgbs, None, None, future_flows, past_flows, mask_bwds
     
@@ -73,12 +76,13 @@ class VideoDataParser:
         if target_ids is not None:
             assert len(target_ids) == len(frame_ids), "target_ids and frame_ids should have the same length"
 
+        future_flow_prev, past_flow_prev, target_flow_prev, src_flow_prev = None, None, None, None
+        
         if self.flow_model.lower() == 'raft':
             model = eu.prepare_raft_model(self.device)
         elif self.flow_model.lower() == 'memflow':
             model = eu.prepare_memflow_model(self.device)
             gts = gts * 2.0 - 1.0
-            future_flow_prev, past_flow_prev, target_flow_prev, src_flow_prev = None, None, None, None
         else:
             raise NotImplementedError(f"{self.flow_model} is not implemented yet.")
         
@@ -136,10 +140,10 @@ class VideoDataParser:
 
         del model  # Free up memory
         
-        flows = self.process_flow(flows) if future_flow else None
-        past_flows = self.process_flow(past_flows) if past_flow else None
-        target_flows = self.process_flow(target_flows) if target_ids is not None else None
-        src_flows = self.process_flow(src_flows) if target_ids is not None else None
+        flows = self.process_flow(flows).to(self.device, dtype=self.dtype)  if future_flow else None
+        past_flows = self.process_flow(past_flows).to(self.device, dtype=self.dtype)  if past_flow else None
+        target_flows = self.process_flow(target_flows).to(self.device, dtype=self.dtype)  if target_ids is not None else None
+        src_flows = self.process_flow(src_flows).to(self.device, dtype=self.dtype)  if target_ids is not None else None
 
         mask_bwds_st = None if target_ids is None else get_key_mask_bwds(gts, target_ids, target_flows, src_flows, alpha=self.alpha, diff_threshold=diff_threshold)
         mask_bwds = None if not future_flow or not past_flow else get_soft_mask_bwds(gts, flows, past_flows, alpha=self.alpha, diff_threshold=diff_threshold)
@@ -161,7 +165,7 @@ class VideoDataParser:
     def process_flow(self, flow: list[torch.Tensor]):
         flow = torch.stack(flow, dim=0)
         N, _, H, W = flow.shape
-        flow = process_frames(flow, self.h, self.w).to(self.device)
+        flow = process_frames(flow, self.h, self.w)
         scale_factor = max(self.w / W, self.h / H)
         flow *= scale_factor
 
