@@ -651,13 +651,7 @@ class Generator(nn.Module):
                 cat_idxs[cat_idxs < 0] = 0
 
                 unq_inv = self.data_parser.unq_inv.reshape(N, H, W, -1)[cat_idxs].reshape(-1)  # used for opt over uvt
-                cat_images = SH2RGB(features_dc)[unq_inv].reshape(len(cat_idxs), H*W, -1) # N x HW x 3, used for opt over uvt
-
-                # adds residuals
-                # residuals = torch.zeros_like(features_dc[self.data_parser.unq_inv.clone()])
-                # residuals[nonunique_mask] = feature_residuals
-                # residuals = residuals.reshape(N, H, W, -1)[cat_idxs].reshape(len(cat_idxs), H*W, -1)
-                # cat_images = cat_images + residuals
+                cat_images = torch.index_select(SH2RGB(features_dc), 0, unq_inv).reshape(len(cat_idxs), H, W, -1)
 
                 # cat_images = SH2RGB(features_dc).reshape(N, H, W, -1)[cat_idxs]  # used for opt over video
                 cat_images = torch.clamp(cat_images, 0, 1).reshape(len(cat_idxs), H, W, 3).permute(0, 3, 1, 2)  # N x 3 x H x W
@@ -763,12 +757,11 @@ class Generator(nn.Module):
                 prompt_embeds = self.get_text_embeds_input(edit_prompt, self.negative_prompt)
                 prompt_embeds_t = self.get_text_embeds_input(self.prompt_t, self.negative_prompt_t)
 
-            # Comment this if you have enough GPU memory
             clean_latent = self.ddim_sample(self.init_noise, prompt_embeds, prompt_embeds_t, concat_conds)
-            torch.cuda.empty_cache()
             clean_frames = self.decode_latents_batch(clean_latent)
 
             if self.apply_opt:
+                torch.cuda.empty_cache()
                 _, _, _, _, past_flows, mask_bwds = self.data_parser.load_data(frame_ids)
                 self.dataset = OptDataset(
                     clean_frames.to(past_flows.dtype),

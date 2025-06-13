@@ -329,7 +329,7 @@ class SceneFlowDataParser:
 
         del rgbs, depths  # Free up memory
 
-        self.unq_inv = voxelization(flow_ids.reshape(-1), 
+        self.unq_inv = voxelization(flow_ids.reshape(-1, 1), 
                                     rgb_world.permute(0, 2, 3, 1).reshape(-1, 3), 
                                     p_world.permute(0, 2, 3, 1).reshape(-1, 3),
                                     self.voxel_size, contract=self.contract)

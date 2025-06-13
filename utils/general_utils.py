@@ -221,35 +221,33 @@ def contract_to_unisphere(
 
 @torch.no_grad()
 def voxelization(flow_ids, in_feats_rgb, in_feats_coord, voxel_size, rgb_vox_size=2/255, instance_ids=None, xyz_min=None, contract=False):
-    # automatically determine the voxel size
+    
+    assert len(flow_ids.shape) == 2 and len(in_feats_rgb.shape) == 2, \
+        "flow_ids and in_feats_rgb should be (N, C) tensors"
+    
+    in_feats_rgb = in_feats_rgb.div_(rgb_vox_size, rounding_mode='floor')
+    indexes = [flow_ids, in_feats_rgb]
+    
     if instance_ids is not None:
-        flow_ids = torch.stack([flow_ids, instance_ids.to(flow_ids.dtype)], dim=1)
-    _, unq_inv_t, _ = torch.unique(flow_ids, return_inverse=True, return_counts=True, dim=0)
-    if voxel_size is None:
-        print("[INFO] Scatter with Time Dimention.")
-        feats_rgb = torch_scatter.scatter(in_feats_rgb, unq_inv_t, dim=0, reduce='mean')
-        unq_inv = unq_inv_t
-    else:
-        print("[INFO] Scatter with Time&Spatial Dimention.")
-        feats_rgb = torch_scatter.scatter(in_feats_rgb, unq_inv_t, dim=0, reduce='mean')
-        feats_coord = torch_scatter.scatter(in_feats_coord, unq_inv_t, dim=0, reduce='mean')
-
-        # contract to unit sphere
-        # decide aabb according to density
+        indexes.append(instance_ids.to(flow_ids.dtype))
+    
+    if voxel_size is not None:
+        assert len(in_feats_coord.shape) == 2, \
+            "in_feats_coord should be a (N, C) tensor"
         if contract:
-            feats_coord = contract_to_unisphere(feats_coord, ord=torch.inf)
+            in_feats_coord = contract_to_unisphere(in_feats_coord, ord=torch.inf)
         if xyz_min is None:
-            xyz_min = torch.min(feats_coord, dim=0).values
-        voxel_size = torch.tensor([voxel_size] * 3, dtype=feats_coord.dtype, device=feats_coord.device)
-        voxel_index = torch.div(feats_coord - xyz_min[None, :], voxel_size[None, :], rounding_mode='floor')
-        voxel_coords = voxel_index * voxel_size[None, :] + xyz_min[None, :] + voxel_size[None, :] / 2
-        voxel_coords = torch.cat([voxel_coords, torch.div(feats_rgb, rgb_vox_size, rounding_mode='floor')], dim=1)
-        feats_coord, unq_inv_xyz, _ = torch.unique(voxel_coords, return_inverse=True, return_counts=True, dim=0)
-        feats_rgb = torch_scatter.scatter(feats_rgb, unq_inv_xyz, dim=0, reduce='mean')
+            xyz_min = torch.min(in_feats_coord, dim=0).values
+            in_feats_coord -= xyz_min[None, :]
+        voxel_size = torch.tensor([voxel_size] * 3, dtype=in_feats_coord.dtype, device=in_feats_coord.device)
+        in_feats_coord = in_feats_coord.div_(voxel_size[None, :], rounding_mode='floor')
+        
+        indexes.append(in_feats_coord)
 
-        unq_inv = unq_inv_xyz[unq_inv_t]
+    indexes = torch.cat(indexes, dim=1)
+    unq_indexes, unq_inv = torch.unique(indexes, return_inverse=True, dim=0)
 
-    print(f"Total number of unique voxels: {feats_rgb.shape[0]} / {flow_ids.shape[0]}")
+    print(f"Total number of unique voxels: {unq_indexes.shape[0]} / {flow_ids.shape[0]}")
 
     return unq_inv
 

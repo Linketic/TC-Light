@@ -49,7 +49,7 @@ class VideoDataParser:
     def load_data(self, frame_ids=None, rgb_threshold=0.01):
         
         rgbs = _load_video(self.rgb_path, self.h, self.w, frame_ids=frame_ids, 
-                            device=self.device, base=8)
+                            device='cpu', base=8)
         if rgbs.min() < 0:
             # if normalized to [-1, 1], rescale to [0, 1]
             # use in-place operation to save memory
@@ -59,12 +59,11 @@ class VideoDataParser:
         self.n_frames = rgbs.shape[0]
         
         future_flows, past_flows, mask_bwds, _, _, _ = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgbs)
-        flow_ids = get_flowid(rgbs, future_flows, mask_bwds, rgb_threshold=rgb_threshold)
+        flow_ids = get_flowid(rgbs, future_flows, mask_bwds, rgb_threshold=rgb_threshold).view(-1, 1)
+        rgbs = rgbs.permute(0, 2, 3, 1).reshape(-1, 3).to(self.device) # Shape: (N*h*w, 3)
         torch.cuda.empty_cache()  # Clear GPU memory
 
-        self.unq_inv = voxelization(flow_ids.reshape(-1), 
-                                    rgbs.permute(0, 2, 3, 1).reshape(-1, 3), 
-                                    None, None)
+        self.unq_inv = voxelization(flow_ids, rgbs, None, None)
         torch.cuda.empty_cache()  # Clear GPU memory
 
         return rgbs, None, None, future_flows, past_flows, mask_bwds
