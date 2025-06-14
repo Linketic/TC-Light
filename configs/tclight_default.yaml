@@ -1,11 +1,15 @@
 sd_version: "iclight" # In ['2.1', '2.0', '1.5', 'depth', 'iclight']
 model_key: null # Specify model key. If set, ignore sd_version.
-input_path: "path/to/video" # Accept .mp4, .gif file or a folder with png/jpg sequence
 work_dir: "workdir"
 
-height: 512
-width: 512
+data:
+  scene_type: "video"
+  # rgb_path: "path/to/your/video"
+  height: 720  # should be divisible by 8
+  width: 960  # should be divisible by 8
+  fps: 15
 
+# inversion part is not involved with iclight model
 inversion:
   save_path: "${work_dir}/latents"
   prompt: "xxxx"
@@ -35,7 +39,7 @@ generation:
   # Sample args:
   guidance_scale: 2.0 # CFG scale
   n_timesteps: 25
-  negative_prompt: "lowres, bad anatomy, bad hands, cropped, worst quality"
+  negative_prompt: "The video captures a game playing, with bad crappy graphics and cartoonish frames. It represents a recording of old outdated games. The lighting looks very fake. The textures are very raw and basic. The geometries are very primitive. The images are very pixelated and of poor CG quality. There are many subtitles in the footage. Overall, the video is unrealistic at all."
   prompt_upsampler_ckpt: null
   prompt: null
     # style: "xxx"
@@ -48,25 +52,27 @@ generation:
   chunk_size: 4 # Number of frames in a video chunk
   chunk_ord: "mix-4" # Process video chunks in which order. From ['seq', 'rand', 'mix-#'].
 
-  # VidToMe args. See details in "src/vidtome/patch.py, apply_patch()"
-  local_merge_ratio: 0.9
+  # VidToMe args. See details in "utils/VidToMe/vidtome/patch.py, apply_patch()"
+  local_merge_ratio: 0.6
   merge_global: True
-  global_merge_ratio: 0.8
+  global_merge_ratio: 0.5
   global_rand: 0.5
   align_batch: True
   max_downsample: 2
+
+  # Decayed Multi-axis Denoising args
   noise_mode: "same"
-  win_size_t: 64
-  alpha_t: 0.2
-  final_factor_t: 0.01
+  alpha_t: 0.0  # by default use no multi-axis denoising
+  final_factor_t: 0.01  # alphat_t would be decayed by this factor at last denoising step
+  win_size_t: 64  # temporal window size for temporal denoising
   prompt_t: "best quality"
   negative_prompt_t: "jittery"
 
-  frame_range: [0, 32, 1] # start, end, interval. == [0, 32] == [32]
+  frame_range: [0, 30, 1] # start, end, interval. == [0, 32] == [32]
   frame_ids: null # Specify frame indexes to edit. It will override frame_range.
   save_frame: True
 
-  # LoRA configs
+  # LoRA configs, not involved with iclight model
   use_lora: False
   # If use LoRA, add parameters below such as:
   # lora:
@@ -75,19 +81,18 @@ generation:
   #   lora_adapter: null
   #   lora_weight: 1.0
 
+# Post-optimization configs
 post_opt:
-  apply_opt: False
-  epochs_exposure: 35
-  epochs: 70
-  batch_size: 16
-  lambda_dssim: 0.2
-  lambda_perceptual: 0.01
-  lambda_flow: 0.8
-  lambda_tv: 0.05
-  lambda_exp: 0.8
-  feature_lr: 0.05
-  exposure_lr_init: 0.01
-  exposure_lr_final: 0.001
+  apply_opt: True
+  epochs_exposure: 35  # Number of epochs for exposure optimization
+  epochs: 70  # Number of epochs for unique video tensor optimization
+  batch_size: 16  # Batch size for optimization
+  lambda_dssim: 0.2  # Weight to balance dssim loss, increase it to better align with relighting result
+  lambda_flow: 0.8  # Weight to balance flow loss, increase it to enhance motion consistency
+  lambda_tv: 0.05  # Weight to balance total variation loss, increase it to enhance smoothness among adjacent pixels
+  feature_lr: 0.05  # Learning rate for unique video tensor optimization
+  exposure_lr_init: 0.01  # Initial learning rate for exposure optimization
+  exposure_lr_final: 0.001  # Final learning rate for exposure optimization
   exposure_lr_delay_steps: 0
   exposure_lr_delay_mult: 0.0
 

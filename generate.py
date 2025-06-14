@@ -53,7 +53,6 @@ class Generator(nn.Module):
         self.lambda_dssim = post_opt_config.lambda_dssim
         self.lambda_flow = post_opt_config.lambda_flow
         self.lambda_tv = post_opt_config.lambda_tv
-        self.lambda_exp = post_opt_config.lambda_exp
         self.epochs_exposure = post_opt_config.epochs_exposure
         self.epochs = post_opt_config.epochs
         self.opt_batch_size = post_opt_config.batch_size
@@ -582,7 +581,7 @@ class Generator(nn.Module):
                 loss_flow = l1_loss(warped_images[idxs>0] * _mask_bwds[idxs>0], 
                                     images[idxs>0] * _mask_bwds[idxs>0])
 
-                loss = (1 - self.lambda_exp) * loss_photometric + self.lambda_exp * loss_flow
+                loss = (1 - self.lambda_flow) * loss_photometric + self.lambda_flow * loss_flow
 
                 loss_list_exposure.append(loss.item())
 

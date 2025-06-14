@@ -1,38 +1,59 @@
-# IC-Light
+<p align="center">
+<h1 align="center"><strong>TC-Light: Temporally Consistent Relighting for Dynamic Long Videos</strong></h1>
+  <p align="center">
+    <em>Institute of Automation, Chinese Academy of Sciences; University of Chinese Academy of Sciences</em>
+  </p>
+</p>
 
-IC-Light is a project to manipulate the illumination of images.
+<div id="top" align="center">
 
-The name "IC-Light" stands for **"Imposing Consistent Light"** (we will briefly describe this at the end of this page).
+[![](https://img.shields.io/badge/%F0%9F%9A%80%20Project-V1-green)](https://dekuliutesla.github.io/citygs/)
+[![](https://img.shields.io/badge/%F0%9F%9A%80%20Project-V2-blue)](https://dekuliutesla.github.io/CityGaussianV2/)
+[![HuggingFace](https://img.shields.io/badge/%F0%9F%A4%97-Hugging%20Face-orange)](https://huggingface.co/TeslaYang123/CityGaussian)
+![GitHub Repo stars](https://img.shields.io/github/stars/DekuLiuTesla/CityGaussian)
 
-Currently, we release two types of models: text-conditioned relighting model and background-conditioned model. Both types take foreground images as inputs.
+</div>
+<p align="center">
+  <img src="imgs/teaser.png">
+</p>
 
-**Note that "iclightai dot com" is a scam website. They have no relationship with us. Do not give scam websites money! This GitHub repo is the only official IC-Light.**
+This repo contains official implementations of **TC-Light**, a one-shot model used to manipulate the illumination of **high-dynamic videos** such as motion-rich actions and frequent switch of foreground and background objects. It is distinguished by:
 
-# News
+- Outstanding Temporal Consistency on Highly Dynamic Scenarios.
+- Superior Computational Efficiency that Enables Long Video Processing (can process 300 frames with resolution of 1280x720 on 40G A100).
 
-[Alternative model](https://github.com/lllyasviel/IC-Light/discussions/109) for stronger illumination modifications.
+These features make it particularly suitable for sim2real and real2real augmentation for Embodied Agents or preparing video pairs to train stronger video relighting models. Star ⭐ us if you like it!
 
-Some news about flux is [here](https://github.com/lllyasviel/IC-Light/discussions/98). (A fix [update](https://github.com/lllyasviel/IC-Light/discussions/98#discussioncomment-11370266) is added at Nov 25, more demos will be uploaded soon.)
 
-# Get Started
+# 🛠 Getting Started
 
-Below script will run the text-conditioned relighting model:
+Install the required environment as follows:
+```bash
+git clone https://github.com/lllyasviel/IC-Light.git
+cd TC-Light
+conda create -n tclight python=3.10
+conda activate tclight
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+pip install -r requirements.txt
+```
+As a quick start, you can use:
+```bash
+# support .mp4, .avi, and folder containing sequential images
+# --multi_axis enables decayed multi-axis denoising, which enhances consistency but slow down the diffusion process
+python run.py -i /path/to/your/video -p "your_prompt" \
+              -n "your_negative_prompt" \  #  optional
+              --multi_axis  # optional
+```
+By default, it will relight the first 30 frames with resolution 960x720. The default negative prompt is adopted from [Cosmos-Transfer1](https://github.com/nvidia-cosmos/cosmos-transfer1). If it is the first-time running on a specific video, it would generate and save flow un the path to your video. 
 
-    git clone https://github.com/lllyasviel/IC-Light.git
-    cd IC-Light
-    conda create -n iclight python=3.10
-    conda activate iclight
-    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-    pip install -r requirements.txt
-    python gradio_demo.py
-
-Or, to use background-conditioned demo:
-
-    python gradio_demo_bg.py
+For a fine-grained control, you can customize your .yaml config file and run:
+```bash
+python run.py --config path/to/your_config.yaml
+```
+You can start from [configs/tclight_custom.yaml](configs/tclight_custom.yaml), which records the most frequently used parameters and detailed explanation.
 
 Model downloading is automatic.
 
-Note that the "gradio_demo.py" has an official [huggingFace Space here](https://huggingface.co/spaces/lllyasviel/IC-Light).
 
 # Screenshot
 
