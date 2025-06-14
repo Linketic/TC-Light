@@ -100,7 +100,7 @@ class CarlaDataParser(VideoDataParser):
         return rgbs
     
     @torch.no_grad()
-    def load_data(self, frame_ids=None, rgb_threshold=0.01):
+    def load_data(self, frame_ids=None, rgb_threshold=0.01, vq=False):
         rgbs, depths, masks, c2ws = [], [], [], []
         frame_ids = frame_ids if frame_ids is not None else list(range(self.n_frames))
         for i in tqdm(range(len(os.listdir(self.extrinsic_path))), desc="Loading Data"):
@@ -154,10 +154,11 @@ class CarlaDataParser(VideoDataParser):
         else:
             masks = None
         
-        self.unq_inv = voxelization(flow_ids, rgb_world, p_world,
-                                    self.voxel_size, instance_ids=masks,
-                                    contract=self.contract)
-        torch.cuda.empty_cache()  # Clear GPU memory
+        if not vq:
+            self.unq_inv = voxelization(flow_ids, rgb_world, p_world,
+                                        self.voxel_size, instance_ids=masks,
+                                        contract=self.contract)
+            torch.cuda.empty_cache()  # Clear GPU memory
 
         return rgb_world, p_world, c2ws, flows, past_flows, mask_bwds
     

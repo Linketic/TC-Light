@@ -50,6 +50,7 @@ class Generator(nn.Module):
         post_opt_config = config.post_opt
         self.dataset = None
         self.apply_opt = post_opt_config.apply_opt
+        self.apply_vq = post_opt_config.apply_vq
         self.lambda_dssim = post_opt_config.lambda_dssim
         self.lambda_flow = post_opt_config.lambda_flow
         self.lambda_tv = post_opt_config.lambda_tv
@@ -625,9 +626,44 @@ class Generator(nn.Module):
         with torch.no_grad(): 
             N, _, H, W = self.dataset.edited_images.shape
             feature_lr = self.feature_lr * self.opt_batch_size / N
-            pil_tensor = self.dataset.edited_images.permute(0, 2, 3, 1).reshape(N*H*W, -1)
-            pil_tensor = torch_scatter.scatter(pil_tensor, self.data_parser.unq_inv, dim=0, reduce='mean')  # used for opt over uvt
-            fused_color = RGB2SH(pil_tensor)
+            
+            if not self.apply_vq:
+                pil_tensor = self.dataset.edited_images.permute(0, 2, 3, 1).reshape(N*H*W, -1)
+                pil_tensor = torch_scatter.scatter(pil_tensor, self.data_parser.unq_inv, dim=0, reduce='mean')  # used for opt over uvt
+                fused_color = RGB2SH(pil_tensor)
+            else:
+                from vector_quantize_pytorch import VectorQuantize
+                torch.cuda.empty_cache()
+
+                fused_color = RGB2SH(self.dataset.edited_images.permute(0, 2, 3, 1).reshape(N*H*W, -1))
+                vq = VectorQuantize(
+                    dim = fused_color.shape[1],              
+                    codebook_size = 2**13,
+                    decay = 0.8,                            
+                    commitment_weight = 1.0,                
+                    use_cosine_sim = False,
+                    threshold_ema_dead_code=0,
+                ).to(fused_color.device)
+
+                VQ_CHUNK = 80000
+                iteration_num = 1000
+                for i in tqdm(range(0, iteration_num), desc="Training VQ Model"):
+                    indexes = torch.randint(0, fused_color.shape[0], (VQ_CHUNK,))
+                    feat, indices, commit = vq(fused_color[indexes,:].unsqueeze(0))
+                
+                vq.eval()
+
+                CHUNK = 8192
+                feat_list = []
+                indice_list = []
+
+                for i in tqdm(range(0, fused_color.shape[0], CHUNK), desc="Quantizing Vectors"):
+                    feat, indices, commit = vq(fused_color[i:i+CHUNK,:].unsqueeze(0))
+                    indice_list.append(indices[0])
+                    feat_list.append(feat[0])
+                
+                fused_color = vq._codebook.embed.squeeze().clone().detach()
+                self.data_parser.unq_inv = torch.cat(indice_list)  # [num_elements, 1]
         
         features_dc = nn.Parameter(fused_color.contiguous().requires_grad_(True))
 
@@ -762,7 +798,7 @@ class Generator(nn.Module):
 
             if self.apply_opt:
                 torch.cuda.empty_cache()
-                _, _, _, _, past_flows, mask_bwds = self.data_parser.load_data(frame_ids)
+                _, _, _, _, past_flows, mask_bwds = self.data_parser.load_data(frame_ids, vq=self.apply_vq)
                 self.dataset = OptDataset(
                     clean_frames.to(past_flows.dtype),
                     past_flows,
