@@ -1,6 +1,7 @@
+import os
 import argparse
 from omegaconf import OmegaConf, DictConfig
-import os
+from datetime import datetime 
 
 def load_config(print_config = True):
     parser = argparse.ArgumentParser()
@@ -38,15 +39,19 @@ def load_config(print_config = True):
     # overwrite config with command line arguments for fast usage
     if args.input_path is not None and config.data.scene_type.lower() == "video":
         config.data.rgb_path = args.input_path
-    if args.prompt is not None:
-        if isinstance(config.generation.prompt, dict):
-            config.generation.prompt["edit"] = args.prompt
-        else:
-            config.generation.prompt = args.prompt
-    if args.negative_prompt is not None:
-        config.generation.negative_prompt = args.negative_prompt
     if args.multi_axis:
         config.generation.alpha_t = 0.01
+    if args.negative_prompt is not None:
+        config.generation.negative_prompt = args.negative_prompt
+    if args.prompt is not None or isinstance(config.generation.prompt, str):
+        args.prompt = config.generation.prompt if args.prompt is None else args.prompt
+        date_time = datetime.now().strftime("%m-%d-%Y")
+        video_name = os.path.splitext(os.path.basename(config.data.rgb_path))[0]
+        config.work_dir = os.path.join(config.work_dir, date_time, video_name)
+        os.makedirs(config.work_dir, exist_ok=True)
+        save_idx = max([int(x[-5:]) for x in os.listdir(config.work_dir)])+1 if os.listdir(config.work_dir) != [] else 0
+        config.generation.prompt = {}
+        config.generation.prompt[f"{args.prompt}-{str(save_idx).zfill(5)}"] = args.prompt
 
     prompt = config.generation.prompt
     if isinstance(prompt, str):

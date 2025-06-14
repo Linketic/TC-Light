@@ -58,7 +58,7 @@ class VideoDataParser:
 
         self.n_frames = rgbs.shape[0]
         
-        future_flows, past_flows, mask_bwds, _, _, _ = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgbs)
+        future_flows, past_flows, mask_bwds = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgbs)
         flow_ids = get_flowid(rgbs, future_flows, mask_bwds, rgb_threshold=rgb_threshold).view(-1, 1)
         rgbs = rgbs.permute(0, 2, 3, 1).reshape(-1, 3).to(self.device) # Shape: (N*h*w, 3)
         torch.cuda.empty_cache()  # Clear GPU memory
@@ -70,12 +70,12 @@ class VideoDataParser:
     
     @torch.no_grad()
     def load_flow(self, frame_ids=None, future_flow=False, past_flow=False, gts=None, target_ids=None, save_flow=True, diff_threshold=0.1):
-        flows, past_flows, target_flows, src_flows = [], [], [], []
+        flows, past_flows = [], []
 
         if target_ids is not None:
             assert len(target_ids) == len(frame_ids), "target_ids and frame_ids should have the same length"
 
-        future_flow_prev, past_flow_prev, target_flow_prev, src_flow_prev = None, None, None, None
+        future_flow_prev, past_flow_prev = None, None
         
         if self.flow_model.lower() == 'raft':
             model = eu.prepare_raft_model(self.device)
@@ -88,14 +88,10 @@ class VideoDataParser:
         gts = gts.to(self.device, dtype=self.dtype) if gts is not None else None
         future_flow_path = self.create_folder(f"future_flow_{self.flow_model.lower()}")
         past_flow_path = self.create_folder(f"past_flow_{self.flow_model.lower()}")
-        target_flow_path = self.create_folder(f"target_flow_{self.flow_model.lower()}")
-        src_flow_path = self.create_folder(f"src_flow_{self.flow_model.lower()}")
         
         if save_flow:
             print(f"[INFO] Saving future flows to {future_flow_path} as .pt files")
             print(f"[INFO] Saving past flows to {past_flow_path} as .pt files")
-            print(f"[INFO] Saving target flows to {target_flow_path} as .pt files")
-            print(f"[INFO] Saving src flows to {src_flow_path} as .pt files")
         
         for idx in tqdm(range(len(gts)), desc="Loading Flows"):
             if future_flow:
@@ -120,34 +116,14 @@ class VideoDataParser:
 
                 past_flows.append(flow_bwd[0].cpu())
 
-            if target_ids is not None:
-                target_id = target_ids[idx]
-
-                if os.path.exists(os.path.join(target_flow_path, "{:04d}_{:04d}.pt".format(frame_ids[idx], frame_ids[target_id]))):
-                    target_flow = torch.load(os.path.join(target_flow_path, "{:04d}_{:04d}.pt".format(frame_ids[idx], frame_ids[target_id])))
-                    src_flow = torch.load(os.path.join(src_flow_path, "{:04d}_{:04d}.pt".format(frame_ids[target_id], frame_ids[idx])))
-                else:
-                    target_flow, _ = self.calc_flow(idx, target_id, gts[idx:idx+1], gts[target_id:target_id+1], model)
-                    src_flow, _ = self.calc_flow(target_id, idx, gts[target_id:target_id+1], gts[idx:idx+1], model)
-
-                    if save_flow:
-                        torch.save(target_flow.cpu(), os.path.join(target_flow_path, "{:04d}_{:04d}.pt".format(frame_ids[idx], frame_ids[target_id])))
-                        torch.save(src_flow.cpu(), os.path.join(src_flow_path, "{:04d}_{:04d}.pt".format(frame_ids[target_id], frame_ids[idx])))
-
-                target_flows.append(target_flow[0].cpu())
-                src_flows.append(src_flow[0].cpu())
-
         del model  # Free up memory
         
         flows = self.process_flow(flows).to(self.device, dtype=self.dtype)  if future_flow else None
         past_flows = self.process_flow(past_flows).to(self.device, dtype=self.dtype)  if past_flow else None
-        target_flows = self.process_flow(target_flows).to(self.device, dtype=self.dtype)  if target_ids is not None else None
-        src_flows = self.process_flow(src_flows).to(self.device, dtype=self.dtype)  if target_ids is not None else None
 
-        mask_bwds_st = None if target_ids is None else get_key_mask_bwds(gts, target_ids, target_flows, src_flows, alpha=self.alpha, diff_threshold=diff_threshold)
         mask_bwds = None if not future_flow or not past_flow else get_soft_mask_bwds(gts, flows, past_flows, alpha=self.alpha, diff_threshold=diff_threshold)
 
-        return flows, past_flows, mask_bwds, target_flows, src_flows, mask_bwds_st
+        return flows, past_flows, mask_bwds
     
     def create_folder(self, save_name):
         if os.path.isdir(self.rgb_path):

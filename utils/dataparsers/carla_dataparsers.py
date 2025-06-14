@@ -140,7 +140,7 @@ class CarlaDataParser(VideoDataParser):
         
         del rgbs, depths  # Free up memory
         rgb_world = process_frames(rgb_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
-        flows, past_flows, mask_bwds, _, _, _ = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgb_world)
+        flows, past_flows, mask_bwds = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgb_world)
         flow_ids = get_flowid(rgb_world, flows, mask_bwds, rgb_threshold=rgb_threshold).view(-1, 1)
         torch.cuda.empty_cache()  # Clear GPU memory
         
