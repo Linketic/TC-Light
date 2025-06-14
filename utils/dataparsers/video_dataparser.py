@@ -46,7 +46,7 @@ class VideoDataParser:
         return rgbs
 
     @torch.no_grad()
-    def load_data(self, frame_ids=None, rgb_threshold=0.01, vq=False):
+    def load_data(self, frame_ids=None, rgb_threshold=0.01):
         
         rgbs = _load_video(self.rgb_path, self.h, self.w, frame_ids=frame_ids, 
                             device='cpu', base=8)
@@ -63,9 +63,8 @@ class VideoDataParser:
         rgbs = rgbs.permute(0, 2, 3, 1).reshape(-1, 3).to(self.device) # Shape: (N*h*w, 3)
         torch.cuda.empty_cache()  # Clear GPU memory
 
-        if not vq:
-            self.unq_inv = voxelization(flow_ids, rgbs, None, None)
-            torch.cuda.empty_cache()  # Clear GPU memory
+        self.unq_inv = voxelization(flow_ids, rgbs, None, None)
+        torch.cuda.empty_cache()  # Clear GPU memory
 
         return rgbs, None, None, future_flows, past_flows, mask_bwds
     

@@ -302,7 +302,7 @@ class SceneFlowDataParser:
         return rgbs
 
     @torch.no_grad()
-    def load_data(self, frame_ids=None, contract=False, rgb_threshold=0.01, vq=False):
+    def load_data(self, frame_ids=None, contract=False, rgb_threshold=0.01):
         rgbs, depths, c2ws = [], [], []
         frame_ids = frame_ids if frame_ids is not None else list(range(len(self.cam_info)))
         for i in tqdm(range(len(self.cam_info)), desc="Loading Data"):
@@ -329,12 +329,10 @@ class SceneFlowDataParser:
 
         del rgbs, depths  # Free up memory
 
-        if not vq:
-            self.unq_inv = voxelization(flow_ids.reshape(-1, 1), 
-                                        rgb_world.permute(0, 2, 3, 1).reshape(-1, 3), 
-                                        p_world.permute(0, 2, 3, 1).reshape(-1, 3),
-                                        self.voxel_size, contract=self.contract)
-            torch.cuda.empty_cache()  # Clear GPU memory
+        self.unq_inv = voxelization(flow_ids.reshape(-1, 1), 
+                                    rgb_world.permute(0, 2, 3, 1).reshape(-1, 3), 
+                                    p_world.permute(0, 2, 3, 1).reshape(-1, 3),
+                                    self.voxel_size, contract=self.contract)
 
         return rgb_world, p_world, c2ws, flows, past_flows, mask_bwds
     
