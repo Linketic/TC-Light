@@ -2,7 +2,7 @@
 from invert import Inverter
 from generate import Generator
 
-from utils.model_utils import init_iclight
+from utils.model_utils import init_iclight, init_iclight_bg
 from utils.VidToMe import load_config, get_frame_ids, seed_everything, init_model
 
 if __name__ == "__main__":
@@ -10,7 +10,10 @@ if __name__ == "__main__":
     seed_everything(config.seed)
 
     if config.sd_version == 'iclight':
-        pipe, scheduler, config.model_key = init_iclight(config.device)
+        if config.generation.background_cond:
+            pipe, scheduler, config.model_key = init_iclight_bg(config.device)
+        else:
+            pipe, scheduler, config.model_key = init_iclight(config.device)
         
         config.max_memory_allocated = 0
         config.total_time = 0

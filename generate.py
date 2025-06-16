@@ -78,6 +78,8 @@ class Generator(nn.Module):
         self.scheduler = scheduler
 
         self.batch_size = 2
+        self.background_cond = gene_config.background_cond
+        self.background_image_path = gene_config.background_image_path
         self.control = gene_config.control
         self.noise_mode = gene_config.noise_mode  # vanilla, mixed, same
         self.use_depth = config.sd_version == "depth"
@@ -213,6 +215,28 @@ class Generator(nn.Module):
     @torch.inference_mode()
     def prepare_data(self, latent_path, frame_ids):
         self.frames = self.data_parser.load_video(frame_ids=frame_ids)
+        self.background_frames = None
+
+        if self.background_cond:
+            from briarmbg import BriaRMBG
+            rmbg = BriaRMBG.from_pretrained("briaai/RMBG-1.4").to(self.frames.device, dtype=self.frames.dtype)
+            N, C, H, W = self.frames.shape
+            assert C == 3
+            k = (256.0 / float(H * W)) ** 0.5
+            feed = torch.nn.functional.interpolate(
+                self.frames, size=(int(64 * round(W * k)), int(64 * round(H * k))), mode="bilinear")
+            # alpha = rmbg(feed * 255.0)[0][0]
+            # use batch processing
+            alphas = []
+            batch_imgs = feed.split(self.batch_size, dim=0)
+            for img in batch_imgs:
+                alphas += [rmbg(img * 255.0)[0][0]]
+            alpha = torch.cat(alphas, dim=0)
+
+            alpha = torch.nn.functional.interpolate(alpha, size=(H, W), mode="bilinear").clip(0, 1)
+            self.frames = (127 + (self.frames * 255.0 - 127) * alpha).clip(0, 255) / 255.0
+
+            self.background_frames = self.data_parser.load_video(path=self.background_image_path)
 
         torch.cuda.empty_cache()
         
@@ -239,29 +263,6 @@ class Generator(nn.Module):
                     generator=self.rng[0],
                     latents=None,
                 ).repeat(self.frames.shape[0], 1, 1, 1)
-            elif self.noise_mode.lower() == "mixed":
-                alpha = 1.0
-                init_noise_ind = self.pipe.prepare_latents(
-                    self.frames.shape[0],
-                    self.pipe.unet.config.in_channels,
-                    self.frames.shape[2],
-                    self.frames.shape[3],
-                    self.dtype,
-                    self.frames.device,
-                    generator=self.rng,
-                    latents=None,
-                )
-                init_noise_shared = self.pipe.prepare_latents(
-                    1,
-                    self.pipe.unet.config.in_channels,
-                    self.frames.shape[2],
-                    self.frames.shape[3],
-                    self.dtype,
-                    self.frames.device,
-                    generator=torch.Generator(device=self.device).manual_seed(int(self.seed)),
-                    latents=None,
-                )
-                self.init_noise = init_noise_ind / math.sqrt(1 + alpha**2) + alpha * init_noise_shared / math.sqrt(1 + alpha**2)
             else:
                 raise NotImplementedError(f"Noise mode {self.noise_mode} is not supported.")
 
@@ -390,6 +391,7 @@ class Generator(nn.Module):
             # Reset global tokens
             vidtome.update_patch(self.pipe, global_tokens = None)
     
+    @torch.inference_mode()
     def temporal_denoise(self, x, conds_t, t, concat_conds, alpha_t, noises_t, noises):
         
         n_slices = math.ceil((len(x) - 1) / (self.win_size_t - 1))
@@ -630,12 +632,8 @@ class Generator(nn.Module):
         
         features_dc = nn.Parameter(fused_color.contiguous().requires_grad_(True))
 
-        # nonunique_mask = (torch.unique(self.data_parser.unq_inv, return_counts=True)[1] > 1)[self.data_parser.unq_inv]
-        # feature_residuals = nn.Parameter(torch.zeros_like(features_dc[self.data_parser.unq_inv.clone()][nonunique_mask]).contiguous().requires_grad_(True))
-
         l = [
             {'params': [features_dc], 'lr': feature_lr, "name": "f_dc"},
-            # {'params': [feature_residuals], 'lr': feature_lr / 1000, "name": "f_residuals"},
         ]
         optimizer = torch.optim.Adam(l, lr=0.0, eps=1e-15)
 
@@ -652,7 +650,7 @@ class Generator(nn.Module):
                 unq_inv = self.data_parser.unq_inv.reshape(N, H, W, -1)[cat_idxs].reshape(-1)  # used for opt over uvt
                 cat_images = torch.index_select(SH2RGB(features_dc), 0, unq_inv).reshape(len(cat_idxs), H, W, -1)
 
-                # cat_images = SH2RGB(features_dc).reshape(N, H, W, -1)[cat_idxs]  # used for opt over video
+                # cat_images = SH2RGB(features_dc).reshape(N, H, W, -1)[cat_idxs].permute(0, 3, 1, 2)  # used for opt over video
                 cat_images = torch.clamp(cat_images, 0, 1).reshape(len(cat_idxs), H, W, 3).permute(0, 3, 1, 2)  # N x 3 x H x W
 
                 images = cat_images[:len(idxs)]
@@ -685,9 +683,6 @@ class Generator(nn.Module):
         pbar.close()
 
         with torch.no_grad():
-            # images = SH2RGB(features_dc)[self.data_parser.unq_inv]
-            # images[nonunique_mask] = images[nonunique_mask] + feature_residuals
-            # images = images.reshape(N, H*W, -1)
 
             images = SH2RGB(features_dc)[self.data_parser.unq_inv].reshape(N, H*W, -1) # N x HW x 3, used for opt over uvt
             # images = SH2RGB(features_dc).reshape(N, H*W, -1) # N x HW x 3, used for opt over video
@@ -719,7 +714,7 @@ class Generator(nn.Module):
 
             opt_post_fix = "_opt" if self.apply_opt else ""
             opt_post_fix += "_upsampled" if edit_prompt is None else ""
-            save_name = f"{edit_name}_lmr_{self.local_merge_ratio}_gmr_{self.global_merge_ratio}_alpha_t_{self.alpha_t}"+opt_post_fix
+            save_name = f"lmr_{self.local_merge_ratio}_gmr_{self.global_merge_ratio}_alpha_t_{self.alpha_t}"+opt_post_fix+f"_{edit_name}"
             cur_output_path = os.path.join(output_path, save_name)
 
             if edit_prompt is None:
@@ -742,10 +737,14 @@ class Generator(nn.Module):
             print(f"[INFO] current prompt: {edit_prompt}")
 
             if self.model_key == 'iclight':
-                concat_conds = self.encode_imgs_batch(self.frames)
+                if self.background_cond:
+                    concat_conds = torch.cat([self.encode_imgs_batch(self.frames), 
+                                              self.encode_imgs_batch(self.background_frames).repeat(self.frames.shape[0], 1, 1, 1)], dim=1)
+                else:
+                    concat_conds = self.encode_imgs_batch(self.frames)
                 # clean_frames = self.decode_latents_batch(concat_conds)  # reconstruct to check results
 
-                assert concat_conds.shape[1] == self.pipe.unet.config.in_channels, f"Expected {self.pipe.unet.config.in_channels} channels, got {concat_conds.shape[1]}"
+                # assert concat_conds.shape[1] == self.pipe.unet.config.in_channels, f"Expected {self.pipe.unet.config.in_channels} channels, got {concat_conds.shape[1]}"
                 conds, unconds = self.encode_prompt_pair(positive_prompt=edit_prompt, negative_prompt=self.negative_prompt)
                 conds_t, unconds_t = self.encode_prompt_pair(positive_prompt=self.prompt_t, negative_prompt=self.negative_prompt_t)
 

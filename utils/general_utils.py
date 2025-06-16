@@ -229,15 +229,13 @@ def voxelization(flow_ids, in_feats_rgb, in_feats_coord, voxel_size, rgb_vox_siz
         flow_ids = torch.cat([flow_ids, instance_ids.to(flow_ids.dtype)], dim=1)
     unq_feats, unq_inv_t = torch.unique(flow_ids, return_inverse=True, dim=0)
 
-    in_feats_rgb = torch_scatter.scatter(in_feats_rgb, unq_inv_t, dim=0, reduce='mean')
-    in_feats_rgb = in_feats_rgb.div_(rgb_vox_size, rounding_mode='floor')
-
     if voxel_size is None:
         print("[INFO] Scatter with Time Dimention.")
-        unq_feats, unq_inv_rgb = torch.unique(in_feats_rgb, return_inverse=True, dim=0)
-        unq_inv = unq_inv_rgb[unq_inv_t]
+        unq_inv = unq_inv_t
     else:
         print("[INFO] Scatter with Time&Spatial Dimention.")
+        in_feats_rgb = torch_scatter.scatter(in_feats_rgb, unq_inv_t, dim=0, reduce='mean')
+        in_feats_rgb = in_feats_rgb.div_(rgb_vox_size, rounding_mode='floor')
         in_feats_coord = torch_scatter.scatter(in_feats_coord, unq_inv_t, dim=0, reduce='mean')
 
         if contract:
@@ -254,9 +252,6 @@ def voxelization(flow_ids, in_feats_rgb, in_feats_coord, voxel_size, rgb_vox_siz
         unq_inv = unq_inv_xyz[unq_inv_t]
 
     print(f"Total number of unique voxels: {unq_feats.shape[0]} / {flow_ids.shape[0]}")
-
-    return unq_inv
-
 
     return unq_inv
 

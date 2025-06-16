@@ -34,9 +34,10 @@ class VideoDataParser:
             self.n_frames = len([name for name in os.listdir(self.rgb_path) if os.path.isfile(os.path.join(self.rgb_path, name))])
     
     @torch.no_grad()
-    def load_video(self, frame_ids=None):
+    def load_video(self, frame_ids=None, path=None):
         
-        rgbs = _load_video(self.rgb_path, self.h, self.w, frame_ids=frame_ids, 
+        path = self.rgb_path if path is None else path
+        rgbs = _load_video(path, self.h, self.w, frame_ids=frame_ids, 
                             device=self.device, base=8)
         rgbs = (rgbs + 1.0) * 127.0 / 255.0 if rgbs.min() < 0 else rgbs  # if normalized to [-1, 1], rescale to [0, 1]
         frame_ids = frame_ids if frame_ids is not None else list(range(rgbs.shape[0]))
