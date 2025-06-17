@@ -10,11 +10,7 @@ if __name__ == "__main__":
     seed_everything(config.seed)
 
     if config.sd_version == 'iclight':
-        if config.generation.background_cond:
-            pipe, scheduler, config.model_key = init_iclight_bg(config.device)
-        else:
-            pipe, scheduler, config.model_key = init_iclight(config.device)
-        
+        pipe, scheduler, config.model_key = init_iclight(config.device)
         config.max_memory_allocated = 0
         config.total_time = 0
     else:

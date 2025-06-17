@@ -215,7 +215,6 @@ class Generator(nn.Module):
     @torch.inference_mode()
     def prepare_data(self, latent_path, frame_ids):
         self.frames = self.data_parser.load_video(frame_ids=frame_ids)
-        self.background_frames = None
 
         if self.background_cond:
             from briarmbg import BriaRMBG
@@ -225,8 +224,7 @@ class Generator(nn.Module):
             k = (256.0 / float(H * W)) ** 0.5
             feed = torch.nn.functional.interpolate(
                 self.frames, size=(int(64 * round(W * k)), int(64 * round(H * k))), mode="bilinear")
-            # alpha = rmbg(feed * 255.0)[0][0]
-            # use batch processing
+
             alphas = []
             batch_imgs = feed.split(self.batch_size, dim=0)
             for img in batch_imgs:
@@ -234,9 +232,10 @@ class Generator(nn.Module):
             alpha = torch.cat(alphas, dim=0)
 
             alpha = torch.nn.functional.interpolate(alpha, size=(H, W), mode="bilinear").clip(0, 1)
-            self.frames = (127 + (self.frames * 255.0 - 127) * alpha).clip(0, 255) / 255.0
+            # self.frames = (127 + (self.frames * 255.0 - 127) * alpha).clip(0, 255) / 255.0
 
-            self.background_frames = self.data_parser.load_video(path=self.background_image_path)
+            background_frames = self.data_parser.load_video(path=self.background_image_path)
+            self.frames = alpha * self.frames + (1 - alpha) * background_frames
 
         torch.cuda.empty_cache()
         
@@ -737,11 +736,7 @@ class Generator(nn.Module):
             print(f"[INFO] current prompt: {edit_prompt}")
 
             if self.model_key == 'iclight':
-                if self.background_cond:
-                    concat_conds = torch.cat([self.encode_imgs_batch(self.frames), 
-                                              self.encode_imgs_batch(self.background_frames).repeat(self.frames.shape[0], 1, 1, 1)], dim=1)
-                else:
-                    concat_conds = self.encode_imgs_batch(self.frames)
+                concat_conds = self.encode_imgs_batch(self.frames)
                 # clean_frames = self.decode_latents_batch(concat_conds)  # reconstruct to check results
 
                 # assert concat_conds.shape[1] == self.pipe.unet.config.in_channels, f"Expected {self.pipe.unet.config.in_channels} channels, got {concat_conds.shape[1]}"
