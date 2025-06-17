@@ -1,45 +1,51 @@
-sd_version: "iclight" # In ['2.1', '2.0', '1.5', 'depth', 'iclight']
-model_key: null # Specify model key. If set, ignore sd_version.
-work_dir: "workdir"
+sd_version: "iclight"  # Choices: ['2.1', '2.0', '1.5', 'depth', 'iclight']
+model_key: null  # inherited from VidToMe
+work_dir: "workdir/tclight"
 
 data:
   scene_type: "video"
   # rgb_path: "path/to/your/video"
-  height: 720  # should be divisible by 8
-  width: 960  # should be divisible by 8
-  fps: 15
+  height: 720       # Must be divisible by 8
+  width: 960        # Must be divisible by 8
+  fps: 25
 
-# inversion part is not involved with iclight model
+# Not involved in TC-Light
 inversion:
   save_path: "${work_dir}/latents"
   prompt: "xxxx"
-  n_frames: null # null for inverting all frames
-  steps: 25 # Inversion steps
-  save_intermediate: False # Save intermediate latents. Required when using PnP.
+  n_frames: null                  # Set to null to invert all frames
+  steps: 25                       # Inversion steps
+  save_intermediate: false       # Save intermediate latents (used with PnP)
   save_steps: 25
-  use_blip: False # Use prompt created by BLIP.
-  recon: False # Reconstruct the input video from inverted latents.
-  control: "none" # Apply ControlNet in inversion. Choices ['tile', 'softedge', 'depth', 'canny', 'none']
+  use_blip: false                # Use prompt created by BLIP
+  recon: false                   # Reconstruct video from latents
+  control: "none"                # Choices: ['tile', 'softedge', 'depth', 'canny', 'none']
   control_scale: 1.0
   batch_size: 8
-  force: False # Force run inversion even inverted latents have been found
-  # float_precision: "fp32" # "fp16" or "fp32"
+  force: false                   # Force inversion even if latents exist
+  # float_precision: "fp32"      # Choices: ['fp16', 'fp32']
 
 generation:
-  control: "none" # Apply which control in generation. 
-  
-  # Choices:
-  # 'pnp' (Plug-and-Play), args:
+  control: "none"                # Control signal type, not involved in TC-Light.
+
+  # Plug-and-Play (PnP) arguments
   pnp_attn_t: 0.5
   pnp_f_t: 0.8
 
-  # ['tile', 'softedge', 'depth', 'canny'] (Controlnet), args:
+  # ControlNet parameters
   control_scale: 1.0
 
   # Sample args:
-  guidance_scale: 2.0 # CFG scale
+  background_cond: false
+  background_image_path: null
+  guidance_scale: 2.0            # CFG scale
   n_timesteps: 25
-  negative_prompt: "The video captures a game playing, with bad crappy graphics and cartoonish frames. It represents a recording of old outdated games. The lighting looks very fake. The textures are very raw and basic. The geometries are very primitive. The images are very pixelated and of poor CG quality. There are many subtitles in the footage. Overall, the video is unrealistic at all."
+  negative_prompt: >
+    The video captures a game playing, with bad crappy graphics and cartoonish frames.
+    It represents a recording of old outdated games. The lighting looks very fake.
+    The textures are very raw and basic. The geometries are very primitive.
+    The images are very pixelated and of poor CG quality. There are many subtitles
+    in the footage. Overall, the video is unrealistic at all.
   prompt_upsampler_ckpt: null
   prompt: null
     # style: "xxx"
@@ -49,55 +55,53 @@ generation:
   latents_path: "${inversion.save_path}"
   output_path: "${work_dir}"
 
-  chunk_size: 4 # Number of frames in a video chunk
-  chunk_ord: "mix-4" # Process video chunks in which order. From ['seq', 'rand', 'mix-#'].
+  chunk_size: 4                  # Number of frames in a video chunk
+  chunk_ord: "mix-4"             # Options: ['seq', 'rand', 'mix-#']
 
-  # VidToMe args. See details in "utils/VidToMe/vidtome/patch.py, apply_patch()"
+  # VidToMe-specific arguments. See details in "utils/VidToMe/vidtome/patch.py, apply_patch()"
   local_merge_ratio: 0.6
-  merge_global: True
+  merge_global: true
   global_merge_ratio: 0.5
   global_rand: 0.5
-  align_batch: True
+  align_batch: true
   max_downsample: 2
 
-  # Decayed Multi-axis Denoising args
+  # Decayed multi-axis denoising arguments
   noise_mode: "same"
-  alpha_t: 0.0  # by default use no multi-axis denoising
-  final_factor_t: 0.01  # alphat_t would be decayed by this factor at last denoising step
-  win_size_t: 64  # temporal window size for temporal denoising
+  alpha_t: 0.0                   # by default use no multi-axis denoising
+  final_factor_t: 0.01           # decay factor for multi-axis denoising
+  win_size_t: 64                 # temporal window size for temporal denoising
   prompt_t: "best quality"
   negative_prompt_t: "jittery"
 
-  frame_range: [0, 30, 1] # start, end, interval. == [0, 32] == [32]
-  frame_ids: null # Specify frame indexes to edit. It will override frame_range.
-  save_frame: True
+  frame_range: [0, 30, 1]        # [start, end, interval]
+  frame_ids: null                # Overrides frame_range if set
+  save_frame: true
 
-  # LoRA configs, not involved with iclight model
-  use_lora: False
-  # If use LoRA, add parameters below such as:
+  # Not involved in TC-Light
+  use_lora: false
   # lora:
   #   pretrained_model_name_or_path_or_dict: null
   #   lora_weight_name: null
   #   lora_adapter: null
   #   lora_weight: 1.0
 
-# Post-optimization configs
 post_opt:
-  apply_opt: True
-  epochs_exposure: 35  # Number of epochs for exposure optimization
-  epochs: 70  # Number of epochs for unique video tensor optimization
-  batch_size: 16  # Batch size for optimization
-  lambda_dssim: 0.2  # Weight to balance dssim loss, increase it to better align with relighting result
-  lambda_flow: 0.8  # Weight to balance flow loss, increase it to enhance motion consistency
-  lambda_tv: 0.05  # Weight to balance total variation loss, increase it to enhance smoothness among adjacent pixels
-  feature_lr: 0.05  # Learning rate for unique video tensor optimization
-  exposure_lr_init: 0.01  # Initial learning rate for exposure optimization
-  exposure_lr_final: 0.001  # Final learning rate for exposure optimization
+  apply_opt: true
+  epochs_exposure: 35
+  epochs: 70
+  batch_size: 16
+  lambda_dssim: 0.2              # Increase to better match denoised result
+  lambda_flow: 0.8               # Increase to enhance motion consistency
+  lambda_tv: 0.05                # Increase to smooth adjacent pixels
+  feature_lr: 0.05
+  exposure_lr_init: 0.01
+  exposure_lr_final: 0.001
   exposure_lr_delay_steps: 0
   exposure_lr_delay_mult: 0.0
 
 seed: 12345
 device: "cuda"
-# base_config: "configs/default.yaml" # Set a base config file here
-float_precision: "fp16" # "fp16" or "fp32"
-enable_xformers_memory_efficient_attention: True
+float_precision: "fp16"          # Choices: "fp16", "fp32"
+enable_xformers_memory_efficient_attention: true
+# base_config: "configs/default.yaml"
