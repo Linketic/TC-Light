@@ -4,21 +4,18 @@ import torch.nn.functional as F
 import cv2
 import imageio
 import argparse
-import sys
 import torch
 import clip
 import lpips
-import warnings
 import numpy as np
 import os
 from glob import glob
 from math import exp
-from torch.autograd import Variable
-sys.path.append('/data1/yang_liu/python_workspace/IC-Light/evaluation')  # TODO: change to a robust relative path
-from core.raft import RAFT
-from core.utils.utils import InputPadder, forward_interpolate
 from skimage.metrics import structural_similarity
-from scipy import interpolate
+
+from torch.autograd import Variable
+from evaluation.core.raft import RAFT
+from evaluation.core.utils.utils import InputPadder
 
 def get_frame_ids(frame_range, frame_ids=None):
     if frame_ids is None:

@@ -8,27 +8,15 @@ torch
 peft
 gradio==3.41.2
 protobuf==3.20
-
+lpips
 plyfile
-torch_scatter
-xformers
-pytorch-msssim
-
-# eval
 omegaconf
-vbench
-# piqa
-controlnet_aux
-pyav==12.0.5
+av==12.0.0
 scikit-learn
+torch_scatter
+pytorch-msssim
+controlnet_aux
 clip @ git+https://github.com/openai/CLIP.git
-# sam2 @ git+https://github.com/facebookresearch/sam2.git
-decodrd
-yacs
-
-# droid
-tensorflow
-tensorflow_datasets 
 
 # cosmos
 loguru
@@ -38,16 +26,3 @@ pynvml
 nltk
 better_profanity
 mediapipe
-
-# videovae
-pytorch_lightning
-beautifulsoup4
-taming-transformers
-
-# vidtok
-lightning
-rich
-beartype
-
-# agibot
-git+https://github.com/huggingface/lerobot@59e275743499c5811a9f651a8947e8f881c4058c
