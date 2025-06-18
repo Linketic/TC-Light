@@ -1,8 +1,6 @@
 import torch
-import torchvision
 import torch.nn.functional as F
 from tqdm import tqdm
-from evaluation import eval_utils as eu
 
 def warp_flow(frames, past_flows):
     
@@ -54,16 +52,6 @@ def get_soft_mask_bwds(org_images, flows, past_flows, alpha=0.1, beta=1e2, diff_
         mask_bwds[i+1:i+1+batch_size] *= torch.sigmoid(-beta * (diff_images_warp - org_images.max().item() * diff_threshold))
     
     return mask_bwds[:, None]
-
-def get_key_mask_bwds(org_images, target_ids, target_flow, src_flow, alpha=0.1, diff_threshold=0.1):
-
-    _, mask_bwds = compute_fwdbwd_mask(target_flow, src_flow, alpha=alpha)
-    org_images_warp = warp_flow(org_images, src_flow)
-    mask_bwds &= (org_images_warp - org_images[target_ids]).abs().max(dim=1).values < org_images.max().item() * diff_threshold
-    mask_bwds = mask_bwds[:, None, ...].repeat(1, 3, 1, 1)
-    mask_bwds = (-torch.nn.MaxPool2d(kernel_size=5, stride=1, padding=2)(-mask_bwds.float())).bool()  # dilate error area to enhance robustness
-
-    return mask_bwds
 
 def get_flowid(frames, flows, mask_bwds, rgb_threshold=0.01):
     N, _, H, W = frames.shape

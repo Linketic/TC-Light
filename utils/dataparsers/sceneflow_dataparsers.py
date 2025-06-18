@@ -4,7 +4,6 @@ import re
 import imageio
 import numpy as np
 import torch
-import torchvision.transforms as T
 
 from scipy import misc
 from tqdm import tqdm
@@ -215,186 +214,156 @@ def readCamInfo(file):
 
 class SceneFlowDataParser:
 
-    def __init__(self, 
-                 data_config,
-                 device="cuda",
-                 dtype=torch.float32):
-
-        self.data_dir = "data/sceneflow" if not hasattr(data_config, "data_dir") else data_config.data_dir
-        self.scene_path = "15mm_focallength/scene_backwards/fast" if not hasattr(data_config, "scene_path") else data_config.scene_path
-        self.stereo_sel = "left" if not hasattr(data_config, "stereo_sel") else data_config.stereo_sel
-        self.voxel_size = None if not hasattr(data_config, "voxel_size") else data_config.voxel_size
-        self.contract = False if not hasattr(data_config, "contract") else data_config.contract
-        self.use_raft = False if not hasattr(data_config, "use_raft") else data_config.use_raft
-        self.fps = 30 if not hasattr(data_config, "fps") else data_config.fps
-        self.alpha = 0.1 if not hasattr(data_config, "alpha") else data_config.alpha
-        self.h, self.w = data_config.height, data_config.width
+    def __init__(self, data_config, device="cuda", dtype=torch.float32):
+        # Default config with fallback
+        self.data_dir = getattr(data_config, "data_dir", "data/sceneflow")
+        self.scene_path = getattr(data_config, "scene_path", "15mm_focallength/scene_backwards/fast")
+        self.stereo_sel = getattr(data_config, "stereo_sel", "left")
+        self.voxel_size = getattr(data_config, "voxel_size", None)
+        self.contract = getattr(data_config, "contract", False)
+        self.use_raft = getattr(data_config, "use_raft", False)
+        self.fps = getattr(data_config, "fps", 30)
+        self.alpha = getattr(data_config, "alpha", 0.1)
+        self.h = data_config.height
+        self.w = data_config.width
         self.device = device
         self.dtype = dtype
+
         self.unq_inv = None
         self.new_coors = None
 
-        assert self.stereo_sel in ['left', 'right'], "stereo_sel must be either 'left' or 'right'"
-        assert self.scene_path.split('/')[0] in ['15mm_focallength', '35mm_focallength'], "scene_path must be either '15mm_focallength' or '35mm_focallength'"
-        assert self.scene_path.split('/')[1] in ['scene_backwards', 'scene_forwards'], "scene_path must be either 'scene_backwards' or 'scene_forwards'"
-        assert self.scene_path.split('/')[2] in ['fast', 'slow'], "scene_path must be either 'fast' or 'slow'"
+        # Validations
+        stereo_options = ['left', 'right']
+        assert self.stereo_sel in stereo_options, f"stereo_sel must be one of {stereo_options}"
 
+        sp = self.scene_path.split('/')
+        assert sp[0] in ['15mm_focallength', '35mm_focallength'], "Invalid focal length"
+        assert sp[1] in ['scene_backwards', 'scene_forwards'], "Invalid scene direction"
+        assert sp[2] in ['fast', 'slow'], "Invalid speed"
+
+        # Paths
         self.rgb_path = os.path.join(self.data_dir, "frames_cleanpass", self.scene_path, self.stereo_sel)
         self.disparity_path = os.path.join(self.data_dir, "disparity", self.scene_path, self.stereo_sel)
         self.future_flow_path = os.path.join(self.data_dir, "optical_flow", self.scene_path, "into_future", self.stereo_sel)
         self.past_flow_path = os.path.join(self.data_dir, "optical_flow", self.scene_path, "into_past", self.stereo_sel)
 
-        if "15mm" in self.scene_path:
-            self.intrinsics = np.array([[450.0, 0.0, 479.5], [0.0, 450.0, 269.5], [0.0, 0.0, 1.0]])
-        else:
-            self.intrinsics = np.array([[1050.0, 0.0, 479.5], [0.0, 1050.0, 269.5], [0.0, 0.0, 1.0]])
-        
+        # Camera intrinsics
+        self.intrinsics = np.array([[450.0, 0.0, 479.5], [0.0, 450.0, 269.5], [0.0, 0.0, 1.0]]) if "15mm" in self.scene_path \
+                           else np.array([[1050.0, 0.0, 479.5], [0.0, 1050.0, 269.5], [0.0, 0.0, 1.0]])
+
         self.cam_info = readCamInfo(os.path.join(self.data_dir, "camera_data", self.scene_path, "camera_data.txt"))
         self.n_frames = len(self.cam_info)
-    
+
     def rgbd2pcd(self, rgbs, depths, intrinsics, c2ws):
-        # Assuming rgbs is of shape (N, 3, H, W), depths is of shape (N, 1, H, W), and c2ws is of shape (N, 4, 4)
         N, _, H, W = rgbs.shape
-        if len(intrinsics.shape) == 2:
-            intrinsics = intrinsics[None]
-        intrinsics = torch.tensor(intrinsics, dtype=rgbs.dtype, device=rgbs.device)
+        intrinsics = torch.tensor(intrinsics[None] if intrinsics.ndim == 2 else intrinsics,
+                                  dtype=rgbs.dtype, device=rgbs.device)
 
-        with torch.no_grad():
-            # Create meshgrid for x and y coordinates
-            pos_x, pos_y = torch.meshgrid(torch.arange(W, device=rgbs.device), torch.arange(H, device=rgbs.device), indexing='xy')
-            pos_x = pos_x.unsqueeze(0).expand(N, -1, -1)  # Shape: (N, H, W)
-            pos_y = pos_y.unsqueeze(0).expand(N, -1, -1)  # Shape: (N, H, W)
+        pos_x, pos_y = torch.meshgrid(torch.arange(W, device=rgbs.device),
+                                      torch.arange(H, device=rgbs.device), indexing='xy')
+        pos_x, pos_y = pos_x.expand(N, -1, -1), pos_y.expand(N, -1, -1)
+        p_img = torch.stack([pos_x, pos_y], dim=-1).reshape(N, -1, 2)
 
-            # Stack x and y coordinates and reshape to (N, H*W, 2)
-            p_img = torch.stack([pos_x, pos_y], dim=-1).reshape(N, -1, 2)  # Shape: (N, H*W, 2)
+        x_cam = (p_img[..., 0] - intrinsics[:, 0, 2].unsqueeze(1)) * depths.reshape(N, -1) / intrinsics[:, 0, 0].unsqueeze(1)
+        y_cam = (p_img[..., 1] - intrinsics[:, 1, 2].unsqueeze(1)) * depths.reshape(N, -1) / intrinsics[:, 1, 1].unsqueeze(1)
 
-            # Compute x_cam and y_cam
-            x_cam = (p_img[:, :, 0] - intrinsics[:, 0, 2].unsqueeze(1)) * depths.reshape(N, -1) / intrinsics[:, 0, 0].unsqueeze(1)
-            y_cam = (p_img[:, :, 1] - intrinsics[:, 1, 2].unsqueeze(1)) * depths.reshape(N, -1) / intrinsics[:, 1, 1].unsqueeze(1)
+        p_cam_homo = torch.stack([x_cam, -y_cam, -depths.reshape(N, -1), torch.ones_like(x_cam)], dim=-1)
+        p_world = torch.matmul(p_cam_homo, c2ws.transpose(-2, -1))[:, :, :3]
 
-            # Stack x_cam, y_cam, depth, and ones to form homogeneous coordinates
-            p_cam_homo = torch.stack([x_cam, y_cam, depths.reshape(N, -1), torch.ones_like(x_cam, device=rgbs.device)], dim=-1)  # Shape: (N, H*W, 4)
-
-            # This part distinguish different datasets
-            p_cam_homo[:, :, 1:3] *= -1
-
-            # Transform to world coordinates
-            p_world = torch.matmul(p_cam_homo, c2ws.transpose(-2, -1))[:, :, :3]  # Shape: (N, H*W, 3)
-
-            # Reshape rgb to (N, H*W, 3)
-            rgb_world = rgbs.permute(0, 2, 3, 1).reshape(N, -1, 3)  # Shape: (N, H*W, 3)
-        
+        rgb_world = rgbs.permute(0, 2, 3, 1).reshape(N, -1, 3)
         return p_world, rgb_world
-    
+
     @torch.no_grad()
     def load_video(self, frame_ids=None):
         rgbs = []
-        frame_ids = frame_ids if frame_ids is not None else list(range(len(self.cam_info)))
-        for i in tqdm(range(len(self.cam_info)), desc="Loading Data"):
-            if i in frame_ids:
-                rgb = read(os.path.join(self.rgb_path, "{:04d}.png".format(self.cam_info[i]["frame_id"])))
-                rgbs.append(torch.tensor(rgb, dtype=self.dtype, device=self.device).permute(2, 0, 1))
-        
-        self.n_frames = len(rgbs)
-        rgbs = torch.stack(rgbs, dim=0) / 255.0
-        rgbs = process_frames(rgbs, self.h, self.w)  # Shape: (N, 3, h, w)
+        frame_ids = frame_ids or list(range(self.n_frames))
 
-        return rgbs
+        for i in tqdm(frame_ids, desc="Loading Data"):
+            rgb = read(os.path.join(self.rgb_path, f"{self.cam_info[i]['frame_id']:04d}.png"))
+            rgbs.append(torch.tensor(rgb, dtype=self.dtype, device=self.device).permute(2, 0, 1))
+
+        rgbs = torch.stack(rgbs) / 255.0
+        return process_frames(rgbs, self.h, self.w)
 
     @torch.no_grad()
     def load_data(self, frame_ids=None, contract=False, rgb_threshold=0.01):
         rgbs, depths, c2ws = [], [], []
-        frame_ids = frame_ids if frame_ids is not None else list(range(len(self.cam_info)))
-        for i in tqdm(range(len(self.cam_info)), desc="Loading Data"):
-            if i in frame_ids:
-                rgb = read(os.path.join(self.rgb_path, "{:04d}.png".format(self.cam_info[i]["frame_id"])))
-                disparity = read(os.path.join(self.disparity_path, "{:04d}.pfm".format(self.cam_info[i]["frame_id"])))
-                depth = (self.intrinsics[0, 0] * 1.0 / disparity)
-                c2w = self.cam_info[i][self.stereo_sel]
+        frame_ids = frame_ids or list(range(self.n_frames))
 
-                rgbs.append(torch.tensor(rgb, dtype=self.dtype, device=self.device).permute(2, 0, 1))
-                depths.append(torch.tensor(depth[None], dtype=self.dtype, device=self.device))
-                c2ws.append(torch.tensor(c2w, dtype=self.dtype, device=self.device))
-        
-        self.n_frames = len(rgbs)
-        rgbs = torch.stack(rgbs, dim=0) / 255.0
-        depths = torch.stack(depths, dim=0)
-        c2ws = torch.stack(c2ws, dim=0)
+        for i in tqdm(frame_ids, desc="Loading Data"):
+            fid = self.cam_info[i]['frame_id']
+            rgb = read(os.path.join(self.rgb_path, f"{fid:04d}.png"))
+            disp = read(os.path.join(self.disparity_path, f"{fid:04d}.pfm"))
+            depth = self.intrinsics[0, 0] / disp
+            c2w = self.cam_info[i][self.stereo_sel]
+
+            rgbs.append(torch.tensor(rgb, dtype=self.dtype, device=self.device).permute(2, 0, 1))
+            depths.append(torch.tensor(depth[None], dtype=self.dtype, device=self.device))
+            c2ws.append(torch.tensor(c2w, dtype=self.dtype, device=self.device))
+
+        rgbs, depths, c2ws = map(torch.stack, (rgbs, depths, c2ws))
+        rgbs /= 255.0
+
         N, _, H, W = rgbs.shape
-        p_world, rgb_world = self.rgbd2pcd(rgbs, depths, self.intrinsics, c2ws)  # Shape: (N, H*W, 3), (N, H*W, 3)
-        p_world = process_frames(p_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
-        rgb_world = process_frames(rgb_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)  # Shape: (N, 3, h, w)
+        p_world, rgb_world = self.rgbd2pcd(rgbs, depths, self.intrinsics, c2ws)
+
+        p_world = process_frames(p_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)
+        rgb_world = process_frames(rgb_world.reshape(N, H, W, 3).permute(0, 3, 1, 2), self.h, self.w)
+
         flows, past_flows, mask_bwds = self.load_flow(frame_ids=frame_ids, future_flow=True, past_flow=True, gts=rgb_world)
-        flow_ids = get_flowid(rgb_world, flows, mask_bwds, rgb_threshold=rgb_threshold)
+        flow_ids = get_flowid(rgb_world, flows, mask_bwds, rgb_threshold)
 
-        del rgbs, depths  # Free up memory
-
-        self.unq_inv = voxelization(flow_ids.reshape(-1, 1), 
-                                    rgb_world.permute(0, 2, 3, 1).reshape(-1, 3), 
+        self.unq_inv = voxelization(flow_ids.reshape(-1, 1),
+                                    rgb_world.permute(0, 2, 3, 1).reshape(-1, 3),
                                     p_world.permute(0, 2, 3, 1).reshape(-1, 3),
                                     self.voxel_size, contract=self.contract)
 
         return rgb_world, p_world, c2ws, flows, past_flows, mask_bwds
-    
+
     @torch.no_grad()
     def load_flow(self, frame_ids=None, future_flow=False, past_flow=False, gts=None, diff_threshold=0.1):
         flows, past_flows = [], []
         stereo_tag = "L" if self.stereo_sel == "left" else "R"
         raft_model = eu.prepare_raft_model(self.device) if self.use_raft else None
-        for i in tqdm(range(len(self.cam_info)), desc="Loading Flows"):
-            if i in frame_ids:
-                if not self.use_raft:
-                    if future_flow:
-                        optical_flow_future = read(os.path.join(self.future_flow_path, "OpticalFlowIntoFuture_{:04d}_{}.pfm".format(self.cam_info[i]["frame_id"], stereo_tag)))
-                        flows.append(torch.tensor(optical_flow_future.copy(), dtype=self.dtype, device=self.device).permute(2, 0, 1))
 
-                    if past_flow:
-                        optical_flow_past = read(os.path.join(self.past_flow_path, "OpticalFlowIntoPast_{:04d}_{}.pfm".format(self.cam_info[i]["frame_id"], stereo_tag)))
-                        past_flows.append(torch.tensor(optical_flow_past.copy(), dtype=self.dtype, device=self.device).permute(2, 0, 1))
-                else:
-                    idx = torch.where(torch.tensor(frame_ids) == i)[0].item()
-                    if future_flow:
-                        if idx == gts.shape[0] - 1:
-                            flow_fwd = torch.zeros_like(gts[0:1, :2])
-                        else:
-                            padder = eu.InputPadder(gts[idx:idx+1].shape)
-                            gt, gt_next = padder.pad(gts[idx:idx+1], gts[idx+1:idx+2])
-                            _, flow_fwd = raft_model(gt, gt_next, iters=20, test_mode=True)
-                        flows.append(flow_fwd[0].cpu())
+        for i in tqdm(frame_ids, desc="Loading Flows"):
+            idx = frame_ids.index(i)
+            if self.use_raft:
+                if future_flow:
+                    if idx == len(gts) - 1:
+                        flow_fwd = torch.zeros_like(gts[0:1, :2])
+                    else:
+                        padder = eu.InputPadder(gts[idx:idx+1].shape)
+                        gt, gt_next = padder.pad(gts[idx:idx+1], gts[idx+1:idx+2])
+                        _, flow_fwd = raft_model(gt, gt_next, iters=20, test_mode=True)
+                    flows.append(flow_fwd[0].cpu())
+                if past_flow:
+                    if idx == 0:
+                        flow_bwd = torch.zeros_like(gts[0:1, :2])
+                    else:
+                        padder = eu.InputPadder(gts[idx:idx+1].shape)
+                        gt, gt_prev = padder.pad(gts[idx:idx+1], gts[idx-1:idx])
+                        _, flow_bwd = raft_model(gt, gt_prev, iters=20, test_mode=True)
+                    past_flows.append(flow_bwd[0].cpu())
+            else:
+                fid = self.cam_info[i]['frame_id']
+                if future_flow:
+                    path = os.path.join(self.future_flow_path, f"OpticalFlowIntoFuture_{fid:04d}_{stereo_tag}.pfm")
+                    flow = read(path)
+                    flows.append(torch.tensor(flow.copy(), dtype=self.dtype, device=self.device).permute(2, 0, 1))
+                if past_flow:
+                    path = os.path.join(self.past_flow_path, f"OpticalFlowIntoPast_{fid:04d}_{stereo_tag}.pfm")
+                    flow = read(path)
+                    past_flows.append(torch.tensor(flow.copy(), dtype=self.dtype, device=self.device).permute(2, 0, 1))
 
-                    if past_flow:
-                        if idx == 0:
-                            flow_bwd = torch.zeros_like(gts[0:1, :2])
-                        else:
-                            padder = eu.InputPadder(gts[idx:idx+1].shape)
-                            gt, gt_prev = padder.pad(gts[idx:idx+1], gts[idx-1:idx])
-                            _, flow_bwd = raft_model(gt, gt_prev, iters=20, test_mode=True)
-                        past_flows.append(flow_bwd[0].cpu())
-        
-        del raft_model  # Free up memory
+        del raft_model
 
-        if future_flow:
-            flows = torch.stack(flows, dim=0)
-            N, _, H, W = flows.shape
-            flows = process_frames(flows, self.h, self.w).to(self.device)
-            scale_factor = max(self.w / W, self.h / H)
-            flows *= scale_factor
-        else:
-            flows = None
+        flows = process_frames(torch.stack(flows), self.h, self.w).to(self.device) if future_flow else None
+        past_flows = process_frames(torch.stack(past_flows), self.h, self.w).to(self.device) if past_flow else None
 
-        if past_flow:
-            past_flows = torch.stack(past_flows, dim=0)
-            N, _, H, W = past_flows.shape
-            past_flows = process_frames(past_flows, self.h, self.w).to(self.device)
-            scale_factor = max(self.w / W, self.h / H)
-            past_flows *= scale_factor
-        else:
-            past_flows = None
+        scale = max(self.w / flows.shape[-1], self.h / flows.shape[-2]) if future_flow else 1
+        if flows is not None: flows *= scale
+        if past_flows is not None: past_flows *= scale
 
-        if future_flow and past_flow:
-            mask_bwds = get_soft_mask_bwds(gts, flows, past_flows, alpha=self.alpha, diff_threshold=diff_threshold)
-        else:
-            mask_bwds = None
-
+        mask_bwds = get_soft_mask_bwds(gts, flows, past_flows, alpha=self.alpha, diff_threshold=diff_threshold) if future_flow and past_flow else None
         return flows, past_flows, mask_bwds
-
