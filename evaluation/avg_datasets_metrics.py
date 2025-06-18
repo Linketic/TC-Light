@@ -8,18 +8,11 @@ import argparse
 import numpy as np
 from tqdm import tqdm
 
-def yaml_load(path):
-    with open(path, 'r') as stream:
-        try:
-            return yaml.safe_load(stream)
-        except yaml.YAMLError as exc:
-            print(exc)
-
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--output_dirs', type=str, nargs='+')
-    parser.add_argument('--txt_name', type=str, default='iclight_vidtome_fastblend.txt')
+    parser.add_argument('--txt_name', type=str, required=True)
     args = parser.parse_args()
 
     metrics_dict = {}

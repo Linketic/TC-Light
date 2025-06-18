@@ -1,10 +1,15 @@
 import torch
 import os
-from vbench import VBench
-from vbench.distributed import dist_init, print0
 from datetime import datetime
 import argparse
 import json
+
+try:
+    from vbench import VBench
+    from vbench.distributed import dist_init, print0
+except ImportError:
+    raise ImportError("Please install VBench first by running 'pip install vbench'.")
+
 
 def parse_args():
 

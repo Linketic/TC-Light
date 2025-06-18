@@ -186,7 +186,7 @@ def prepare_raft_model(device):
     args = argparse.Namespace(**raft_dict)
 
     model = torch.nn.DataParallel(RAFT(args))
-    model.load_state_dict(torch.load(args.model))
+    model.load_state_dict(torch.load(args.model, weights_only=False))
 
     model = model.module
     model.to(device)
