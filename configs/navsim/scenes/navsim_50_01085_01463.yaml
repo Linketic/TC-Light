@@ -1,8 +1,0 @@
-data:
-  rgb_path: "data/navsim/sensor_blobs/trainval/2021.10.05.07.38.12_veh-50_01085_01463/CAM_F0"
-
-generation:
-  prompt:
-    navsim_50_01085_01463: The video depicts a quiet, tree-lined road in an urban or suburban setting. The area is lush with greenery, and there are streetlights and traffic signs visible. In the afternoon, sunset, golden time.
-
-base_config: configs/navsim/iclight_navsim_vidtome.yaml

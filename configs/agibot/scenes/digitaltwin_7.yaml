@@ -1,9 +1,0 @@
-data:
-  rgb_path: "data/agibot_digital/observations/digitaltwin_7/60899a59-0109-4271-901f-7447917a1802/video/head.mp4"
-
-generation:
-  prompt:
-    # agibot_digitaltwin_7_upsampled: "The video depicts a scene in a living room where a robotic arm interacts with objects on a coffee table. The table holds two yellow bananas, a red apple, and two bottles. The robotic arm, equipped with a gripper, picks up the bottle and places it in basket. The room features a patterned sofa and a black chair, with a multicolored carpet on the floor."
-    agibot_digitaltwin_7: "at home, living room, robotic arm, yellow bananas, a patterned black sofa, a multicolored carpet on the floor, cinematic lighting." 
-
-base_config: configs/agibot/iclight_agibot_vidtome.yaml

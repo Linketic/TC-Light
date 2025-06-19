@@ -1,9 +1,0 @@
-# Selected
-data:
-  rgb_path: "data/droid_raw/Sat_Sep__9_06:47:11_2023/recordings/MP4/15102076.mp4"
-
-generation:
-  prompt:
-    Sat_Sep__9_06:47:11_2023_wrist: The image depicts a robotic arm in a kitchen setting. The robot, equipped with multiple cables and a camera, is positioned near a countertop. The environment is dimly lit and a bit dark.
-
-base_config: configs/droid/iclight_droid_vidtome.yaml

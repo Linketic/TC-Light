@@ -1,8 +1,0 @@
-data:
-  rgb_path: "data/navsim/sensor_blobs/trainval/2021.06.08.17.36.50_veh-26_03873_04225/CAM_F0"
-
-generation:
-  prompt:
-    navsim_26_03873_04225: The image depicts a busy urban street with multiple vehicles. The road is wet, the atmosphere is overcast, contributing to the overall rainy weather.
-
-base_config: configs/navsim/iclight_navsim_vidtome.yaml

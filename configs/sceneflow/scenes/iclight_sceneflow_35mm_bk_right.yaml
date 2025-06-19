@@ -1,9 +1,0 @@
-data:
-  scene_path: "35mm_focallength/scene_backwards/fast"  # to change
-  stereo_sel: "right"  # to change
-
-generation:
-  prompt:
-    35mm_bk_right_natural: "natural light, distant sky, in autumn"  # to change
-
-base_config: configs/sceneflow/iclight_sceneflow_vidtome.yaml

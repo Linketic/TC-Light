@@ -1,8 +1,0 @@
-data:
-  rgb_path: "data/scand/A_Spot_EER_OsCafe_Tue_Nov_9_39.avi"
-
-generation:
-  prompt:
-    A_Spot_EER_OsCafe_Tue_Nov_9_39: The environment is dimly lit.
-
-base_config: configs/scand/iclight_scand_vidtome.yaml

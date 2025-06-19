@@ -166,3 +166,5 @@ workdir
 data
 plugin
 notebooks
+configs/experiments
+utils/lama

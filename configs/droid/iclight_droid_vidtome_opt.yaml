@@ -1,6 +1,0 @@
-work_dir: "workdir/droid/iclight_vidtome_opt_reflow"
-
-post_opt:
-  apply_opt: True
-
-base_config: configs/droid/iclight_droid_vidtome.yaml

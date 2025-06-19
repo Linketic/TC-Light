@@ -1,8 +1,0 @@
-data:
-  rgb_path: "data/navsim/sensor_blobs/trainval/2021.07.16.00.51.05_veh-17_01352_01901/CAM_F0"
-
-generation:
-  prompt:
-    navsim_17_01352_0190: A busy urban intersection with multiple vehicles, snow, winter. The sky is clear and blue, suggesting a calm, sunny day.
-
-base_config: configs/navsim/iclight_navsim_vidtome.yaml

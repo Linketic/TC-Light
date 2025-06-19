@@ -1,9 +1,0 @@
-# Selected
-data:
-  rgb_path: "data/droid_raw/Sun_Nov_19_14:42:02_2023/recordings/MP4/15102076.mp4"
-
-generation:
-  prompt:
-    Sun_Nov_19_14:42:02_2023_wrist: The image depicts a modern office space with a combination of seating arrangements. The room is well lit by sunshine from window.
-
-base_config: configs/droid/iclight_droid_vidtome.yaml

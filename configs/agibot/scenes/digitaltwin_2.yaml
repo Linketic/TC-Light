@@ -1,9 +1,0 @@
-data:
-  rgb_path: "data/agibot_digital/observations/digitaltwin_2/f2b5efec-f2be-4e2a-b7d2-a91d87215d19/video/head.mp4"
-
-generation:
-  prompt:
-    # agibot_digitaltwin_2_upsampled: "The video depicts a virtual dining scene. A table is set with various items: a red apple, a red cup, a white mug, a black vase with flowers, and a small bowl with fruit. Two chairs are positioned around the table. A robotic arm enters the frame, picking up the red apple and placing it near the cup."
-    agibot_digitaltwin_2: "warm atmosphere, at home, dining room, robotic arm, bright" 
-
-base_config: configs/agibot/iclight_agibot_vidtome.yaml

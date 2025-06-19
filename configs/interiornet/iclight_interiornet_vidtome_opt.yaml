@@ -1,9 +1,0 @@
-work_dir: "workdir/interiornet/iclight_vidtome_opt_reflow"
-
-data:
-  apply_mask: False
-
-post_opt:
-  apply_opt: True
-
-base_config: configs/interiornet/iclight_interiornet_vidtome.yaml

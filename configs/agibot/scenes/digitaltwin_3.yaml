@@ -1,9 +1,0 @@
-data:
-  rgb_path: "data/agibot_digital/observations/digitaltwin_3/ec210ba6-8c0f-4604-8953-e88e60d4acd2/video/head.mp4"
-
-generation:
-  prompt:
-    # agibot_digitaltwin_3_upsampled: "The robotic arm, equipped with a gripper, is positioned over a table. It carefully picks up an apple from the table's surface. The arm's precise movements and mechanical design are highlighted as it manipulates the fruit. The setting appears to be a controlled environment, possibly a lab or workshop, emphasizing the robot's functionality and accuracy."
-    agibot_digitaltwin_3: "at home, dining room, robotic arm, handbag, studio lighting" 
-
-base_config: configs/agibot/iclight_agibot_vidtome.yaml

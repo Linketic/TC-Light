@@ -1,8 +1,0 @@
-data:
-  rgb_path: "data/drone/drone_4"
-
-generation:
-  prompt:
-    drone_4: The atmosphere is overcast, contributing to the overall gloomy weather.
-
-base_config: configs/drone/iclight_drone_vidtome.yaml

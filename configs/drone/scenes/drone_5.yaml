@@ -1,8 +1,0 @@
-data:
-  rgb_path: "data/drone/drone_5"
-
-generation:
-  prompt:
-    drone_5: nitghttime, neon light, studio lighting
-
-base_config: configs/drone/iclight_drone_vidtome.yaml

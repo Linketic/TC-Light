@@ -1,7 +1,0 @@
-work_dir: "workdir/scand/iclight"
-
-generation:
-  local_merge_ratio: 0.01
-  global_merge_ratio: 0.01
-
-base_config: configs/scand/iclight_scand_vidtome.yaml
