@@ -24,10 +24,3 @@ for outdir in $dir/*; do
 done
 wait
 
-for dir in "${dirs[@]}"; do
-    python evaluation/avg_metrics.py --output_dirs $dir/$method/* --save_path $dir/$method.txt --vbench
-    echo "Average metrics saved to $dir.txt"
-done
-
-python evaluation/avg_datasets_metrics.py --output_dirs "${dirs[@]}" --txt_name $method.txt
-

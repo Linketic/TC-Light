@@ -14,8 +14,8 @@ from math import exp
 from skimage.metrics import structural_similarity
 
 from torch.autograd import Variable
-from evaluation.core.raft import RAFT
-from evaluation.core.utils.utils import InputPadder, forward_interpolate
+from core.raft import RAFT
+from core.utils.utils import InputPadder, forward_interpolate
 
 def get_frame_ids(frame_range, frame_ids=None):
     if frame_ids is None:
