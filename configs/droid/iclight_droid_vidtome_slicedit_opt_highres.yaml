@@ -1,0 +1,13 @@
+work_dir: "workdir/droid/iclight_vidtome_slicedit_opt_highres"
+
+data:
+  height: 720
+  width: 1280
+
+generation:
+  alpha_t: 0.01
+
+post_opt:
+  apply_opt: True
+
+base_config: configs/droid/iclight_droid_vidtome.yaml
