@@ -168,5 +168,6 @@ plugin
 notebooks
 utils/lama
 configs/experiments
+scripts/experiments
 examples/*_memflow
 examples/*_raft
