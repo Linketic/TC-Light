@@ -166,5 +166,7 @@ workdir
 data
 plugin
 notebooks
-configs/experiments
 utils/lama
+configs/experiments
+examples/*_memflow
+examples/*_raft

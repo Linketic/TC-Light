@@ -5,57 +5,21 @@ get_available_gpu() {
   '
 }
 
-declare -a dirs=(
-    "workdir/agibot"
-    "workdir/interiornet"
-    "workdir/carla"
-    "workdir/sceneflow"
-    "workdir/droid"
-    "workdir/navsim"
-    "workdir/scand"
-    "workdir/waymo"
-    "workdir/drone"
-)
+dir="workdir/examples"
 
-method=iclight_vidtome_slicedit_opt
-
-for dir in "${dirs[@]}"; do
-    for outdir in $dir/$method/*; do
-        while true; do
-            gpu_id=$(get_available_gpu)
-            if [[ -n $gpu_id ]]; then
-                echo "GPU $gpu_id is available. Start evaluating '$outdir'"
-                CUDA_VISIBLE_DEVICES=$gpu_id python evaluation/eval_video.py --output_dir $outdir --eval_cost &
-                # Allow some time for the process to initialize and potentially use GPU memory
-                sleep 60
-                # CUDA_VISIBLE_DEVICES=$gpu_id python evaluation/update_clipt.py --output_dir $outdir
-                break
-            else
-                echo "No GPU available at the moment. Retrying in 2 minute."
-                sleep 60
-            fi
-        done
-    done
-done
-wait
-
-for dir in "${dirs[@]}"; do
-    for outdir in $dir/$method/*; do
-        while true; do
-            gpu_id=$(get_available_gpu)
-            if [[ -n $gpu_id ]]; then
-                echo "GPU $gpu_id is available. Start evaluating '$outdir'"
-                CUDA_VISIBLE_DEVICES=$gpu_id vbench evaluate \
-                    --dimension motion_smoothness \
-                    --videos_path $outdir/output.mp4 \
-                    --output_path $outdir/vbench \
-                    --mode=custom_input
-                break
-            else
-                echo "No GPU available at the moment. Retrying in 2 minute."
-                sleep 60
-            fi
-        done
+for outdir in $dir/*; do
+    while true; do
+        gpu_id=$(get_available_gpu)
+        if [[ -n $gpu_id ]]; then
+            echo "GPU $gpu_id is available. Start evaluating '$outdir'"
+            CUDA_VISIBLE_DEVICES=$gpu_id python evaluation/eval_video.py --output_dir $outdir --eval_cost &
+            # Allow some time for the process to initialize and potentially use GPU memory
+            sleep 60
+            break
+        else
+            echo "No GPU available at the moment. Retrying in 2 minute."
+            sleep 60
+        fi
     done
 done
 wait

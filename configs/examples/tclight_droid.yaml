@@ -1,0 +1,15 @@
+work_dir: "workdir/examples"
+
+data:
+  rgb_path: "examples/droid.mp4"
+  height: 536       # Must be divisible by 8
+  width: 960        # Must be divisible by 8
+
+generation:
+  alpha_t: 0.01      # Disable decayed multi-axis denoising
+  frame_range: [0, -1, 1]
+  prompt:
+    droid: The image depicts a modern office space with a combination of 
+             seating arrangements. The room is well lit by sunshine from window.
+
+base_config: configs/tclight_default.yaml

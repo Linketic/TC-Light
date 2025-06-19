@@ -14,7 +14,8 @@ generation:
     The textures are very raw and basic. The geometries are very primitive.
     The images are very pixelated and of poor CG quality. There are many subtitles
     in the footage. Overall, the video is unrealistic at all.
-
+  
+  prompt_upsampler_ckpt: "path/to/Cosmos/checkpoints/Pixtral-12B"   # if use hand-crafted prompt, ignore it
   prompt: null
     # style: "xxx"
     # object: "xxx"

@@ -1,0 +1,15 @@
+work_dir: "workdir/examples"
+
+data:
+  rgb_path: "examples/scand.avi"
+  height: 536       # Must be divisible by 8
+  width: 960        # Must be divisible by 8
+  fps: 15
+
+generation:
+  alpha_t: 0.0      # Disable decayed multi-axis denoising
+  frame_range: [0, -1, 1]
+  prompt:
+    scand: magic lit, sci-fi RGB glowing, studio lighting
+
+base_config: configs/tclight_default.yaml
