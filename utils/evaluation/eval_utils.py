@@ -177,7 +177,7 @@ def pick_score_func(frames, prompt, model, processor, device):
 
 def prepare_raft_model(device):
     raft_dict = {
-        'model': '/data1/yang_liu/python_workspace/RAVE/pretrained_models/raft/raft-things.pth',
+        'model': './models/raft/raft-things.pth',
         'small': False,
         'mixed_precision': False,
         'alternate_corr': False
@@ -198,7 +198,7 @@ def prepare_memflow_model(device):
     memflow_dict = {
         'name': 'MemFlowNet',
         'stage': 'things',
-        'restore_ckpt': "/data1/yang_liu/python_workspace/IC-Light/models/memflow/MemFlowNet_things.pth",
+        'restore_ckpt': "./models/memflow/MemFlowNet_things.pth",
     }
 
     args = argparse.Namespace(**memflow_dict)

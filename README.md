@@ -35,6 +35,12 @@ conda activate tclight
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 pip install -r requirements.txt
 ```
+Then download required model weights to `./models` from either of the following links:
+
+- **Hugging Face**: https://huggingface.co/TeslaYang123/TC-Light
+- **Baidu Netdisk**: https://pan.baidu.com/s/1L-mk6Ilzd2o7KLAc7-gIHQ?pwd=rj99
+
+
 As a quick start, you can use:
 ```bash
 # support .mp4, .gif, .avi, and folder containing sequential images
