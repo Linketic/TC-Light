@@ -7,9 +7,8 @@
 
 <div id="top" align="center">
 
-[![](https://img.shields.io/badge/%F0%9F%9A%80%20Project-V1-green)](https://dekuliutesla.github.io/citygs/)
-[![](https://img.shields.io/badge/%F0%9F%9A%80%20Project-V2-blue)](https://dekuliutesla.github.io/CityGaussianV2/)
-[![HuggingFace](https://img.shields.io/badge/%F0%9F%A4%97-Hugging%20Face-orange)](https://huggingface.co/TeslaYang123/CityGaussian)
+[![](https://img.shields.io/badge/%F0%9F%9A%80%20-Project%20Page-blue)](https://dekuliutesla.github.io/tclight/)
+[![](https://img.shields.io/badge/%F0%9F%A4%97-Hugging%20Face-orange)](https://huggingface.co/TeslaYang123/CityGaussian)
 ![GitHub Repo stars](https://img.shields.io/github/stars/DekuLiuTesla/CityGaussian)
 
 </div>
@@ -29,7 +28,7 @@ These features make it particularly suitable for sim2real and real2real augmenta
 
 Install the required environment as follows:
 ```bash
-git clone https://github.com/lllyasviel/IC-Light.git
+git clone https://github.com/Linketic/TC-Light.git
 cd TC-Light
 conda create -n tclight python=3.10
 conda activate tclight
@@ -77,13 +76,6 @@ You can start from [configs/tclight_custom.yaml](configs/tclight_custom.yaml), w
 </details>
 
 
-## 📦 Model Structure
-<p align="center">
-  <img src="imgs/tclight/pipeline.png">
-</p>
-
-TC-Light overview. Please refer to the paper for more details.
-
 ## 🔎 Behaviors
 1. Works better on video resolution over 512x512, which is the minimum resolution used to train IC-Light. 
 2. Works relatively better on realistic scenes than synthetics scenes, no matter in temporal consistency or instruction following ability.
@@ -115,7 +107,7 @@ If you find this repository useful for your research, please use the following B
 
 ## 👏 Acknowledgements
 
-This repo benefits from [3DGS](https://github.com/graphdeco-inria/gaussian-splatting), [2DGS](), [TrimGS](https://github.com/YuxueYang1204/TrimGS), [LightGaussian](https://github.com/VITA-Group/LightGaussian), [Gaussian Lightning](https://github.com/yzslab/gaussian-splatting-lightning). Thanks for their great work!
+This repo benefits from [IC-Light](https://github.com/lllyasviel/IC-Light/), [VidToMe](https://github.com/lixirui142/VidToMe/), [Slicedit](https://github.com/fallenshock/Slicedit/), [Cosmos](https://github.com/NVIDIA/Cosmos). Thanks for their great work!
 
 ## ❓ FAQ
 - _Out of memory occurs in training._ To finish training with limited VRAM, downsampling images or adjusting max_cache_num (we used a rather large 1024) in train_large.py can be a useful practice. Besides, you can increase `prune_ratio` in parallel tuning to further reduce memory cost.
