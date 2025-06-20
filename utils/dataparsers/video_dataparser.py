@@ -3,8 +3,8 @@ import cv2
 import torch
 from tqdm import tqdm
 
-from evaluation import eval_utils as eu
 from utils.VidToMe import load_video as _load_video
+from utils.evaluation import eval_utils as eu
 from utils.general_utils import voxelization, process_frames
 from utils.flow_utils import get_soft_mask_bwds, get_flowid
 

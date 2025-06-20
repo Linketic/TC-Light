@@ -12,7 +12,7 @@ for outdir in $dir/*; do
         gpu_id=$(get_available_gpu)
         if [[ -n $gpu_id ]]; then
             echo "GPU $gpu_id is available. Start evaluating '$outdir'"
-            CUDA_VISIBLE_DEVICES=$gpu_id python evaluation/eval_video.py --output_dir $outdir --eval_cost &
+            CUDA_VISIBLE_DEVICES=$gpu_id python evaluate.py --output_dir $outdir --eval_cost &
             # Allow some time for the process to initialize and potentially use GPU memory
             sleep 60
             break

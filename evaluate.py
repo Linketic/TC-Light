@@ -12,7 +12,7 @@ from omegaconf import OmegaConf
 from transformers import AutoProcessor, AutoModel
 from skimage.metrics import structural_similarity
 
-import eval_utils as eu
+import utils.evaluation.eval_utils as eu
 
 def evaluate_video(video_name, prompt, config, device, output_dir, eval_cost,
                    model, preprocess, pick_model, pick_processor,

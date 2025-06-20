@@ -7,7 +7,7 @@ import torch
 
 from scipy import misc
 from tqdm import tqdm
-from evaluation import eval_utils as eu
+from utils.evaluation import eval_utils as eu
 
 from utils.general_utils import voxelization, process_frames
 from utils.flow_utils import get_soft_mask_bwds, get_flowid

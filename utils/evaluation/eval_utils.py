@@ -14,8 +14,8 @@ from math import exp
 from skimage.metrics import structural_similarity
 
 from torch.autograd import Variable
-from core.raft import RAFT
-from core.utils.utils import InputPadder, forward_interpolate
+from utils.evaluation.core.raft import RAFT
+from utils.evaluation.core.utils.utils import InputPadder, forward_interpolate
 
 def get_frame_ids(frame_range, frame_ids=None):
     if frame_ids is None:
@@ -205,32 +205,32 @@ def prepare_memflow_model(device):
 
     if args.name == "MemFlowNet":
         if args.stage == 'things':
-            from evaluation.memflow.configs.things_memflownet import get_cfg
+            from utils.evaluation.memflow.configs.things_memflownet import get_cfg
         elif args.stage == 'sintel':
-            from evaluation.memflow.configs.sintel_memflownet import get_cfg
+            from utils.evaluation.memflow.configs.sintel_memflownet import get_cfg
         elif args.stage == 'spring_only':
-            from evaluation.memflow.configs.spring_memflownet import get_cfg
+            from utils.evaluation.memflow.configs.spring_memflownet import get_cfg
         elif args.stage == 'kitti':
-            from evaluation.memflow.configs.kitti_memflownet import get_cfg
+            from utils.evaluation.memflow.configs.kitti_memflownet import get_cfg
         else:
             raise NotImplementedError
     elif args.name == "MemFlowNet_T":
         if args.stage == 'things':
-            from evaluation.memflow.configs.things_memflownet_t import get_cfg
+            from utils.evaluation.memflow.configs.things_memflownet_t import get_cfg
         elif args.stage == 'things_kitti':
-            from evaluation.memflow.configs.things_memflownet_t_kitti import get_cfg
+            from utils.evaluation.memflow.configs.things_memflownet_t_kitti import get_cfg
         elif args.stage == 'sintel':
-            from evaluation.memflow.configs.sintel_memflownet_t import get_cfg
+            from utils.evaluation.memflow.configs.sintel_memflownet_t import get_cfg
         elif args.stage == 'kitti':
-            from evaluation.memflow.configs.kitti_memflownet_t import get_cfg
+            from utils.evaluation.memflow.configs.kitti_memflownet_t import get_cfg
         else:
             raise NotImplementedError
 
     cfg = get_cfg()
     cfg.update(vars(args))
 
-    from evaluation.memflow.core.Networks import build_network
-    from evaluation.memflow.inference import inference_core_skflow as inference_core
+    from utils.evaluation.memflow.core.Networks import build_network
+    from utils.evaluation.memflow.inference import inference_core_skflow as inference_core
     model = build_network(cfg).to(device)
 
     if cfg.restore_ckpt is not None:
