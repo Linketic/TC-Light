@@ -13,7 +13,7 @@
 
 </div>
 <p align="center">
-  <img src="imgs/tclight/teaser.png">
+  <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=114721730598474&bvid=BV1S5N1zME7W&cid=30623665622&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
 </p>
 
 This repo contains official implementations of **TC-Light**, a one-shot model used to manipulate the illumination of **high-dynamic videos** such as motion-rich actions and frequent switch of foreground and background objects. It is distinguished by:
@@ -35,7 +35,7 @@ conda activate tclight
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 pip install -r requirements.txt
 ```
-Then download required model weights to `./models` from either of the following links:
+Then download required model weights to `./models` from the following links:
 
 - **Hugging Face**: https://huggingface.co/TeslaYang123/TC-Light
 - **Baidu Netdisk**: https://pan.baidu.com/s/1L-mk6Ilzd2o7KLAc7-gIHQ?pwd=rj99
@@ -113,7 +113,7 @@ If you find this repository useful for your research, please use the following B
 
 ## 👏 Acknowledgements
 
-This repo benefits from [IC-Light](https://github.com/lllyasviel/IC-Light/), [VidToMe](https://github.com/lixirui142/VidToMe/), [Slicedit](https://github.com/fallenshock/Slicedit/), [Cosmos](https://github.com/NVIDIA/Cosmos). Thanks for their great work!
+This repo benefits from [IC-Light](https://github.com/lllyasviel/IC-Light/), [VidToMe](https://github.com/lixirui142/VidToMe/), [Slicedit](https://github.com/fallenshock/Slicedit/), [RAVE](https://github.com/RehgLab/RAVE), [Cosmos](https://github.com/NVIDIA/Cosmos). Thanks for their great work!
 
 ## ❓ FAQ
 - _Out of memory occurs in training._ To finish training with limited VRAM, downsampling images or adjusting max_cache_num (we used a rather large 1024) in train_large.py can be a useful practice. Besides, you can increase `prune_ratio` in parallel tuning to further reduce memory cost.
