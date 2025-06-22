@@ -22,8 +22,7 @@ This repo contains official implementations of **TC-Light**, a one-shot model us
 
 These features make it particularly suitable for sim2real and real2real augmentation for Embodied Agents or preparing video pairs to train stronger video relighting models. Star ⭐ us if you like it!
 
-
-## ⚡ Quick Start
+## 💾 Preparation
 
 Install the required environment as follows:
 ```bash
@@ -39,6 +38,7 @@ Then download required model weights to `./models` from the following links:
 - **Hugging Face**: https://huggingface.co/TeslaYang123/TC-Light
 - **Baidu Netdisk**: https://pan.baidu.com/s/1L-mk6Ilzd2o7KLAc7-gIHQ?pwd=rj99
 
+## ⚡ Quick Start
 
 As a quick start, you can use:
 ```bash
@@ -81,7 +81,7 @@ You can start from [configs/tclight_custom.yaml](configs/tclight_custom.yaml), w
 </details>
 <br>
 
-For evaluation, you can use:
+For evaluation, you can simply use:
 ```bash
 python evaluate.py --output_dir path/to/your_output_dir --eval_cost
 ```
