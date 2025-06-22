@@ -22,6 +22,14 @@ This repo contains official implementations of **TC-Light**, a one-shot model us
 
 These features make it particularly suitable for sim2real and real2real augmentation for Embodied Agents or preparing video pairs to train stronger video relighting models. Star ⭐ us if you like it!
 
+## 💡 Method
+
+<div align="center">
+    <img src='assets/pipeline.png'/>
+</div>
+
+TC-Light overview. Given the source video and text prompt p, the model tokenizes input latents in xy plane and yt plane seperately. The predicted noises are combined together for denoising. Its output then undergoes two-stage optimization to enhance temporal consistency of illumination and texture. Please refer to the paper for more details.
+
 ## 💾 Preparation
 
 Install the required environment as follows:
@@ -96,16 +104,6 @@ python evaluate.py --output_dir path/to/your_output_dir --eval_cost
 - [x] Release the code base.
 - [ ] Release the dataset.
 
-## Model Notes
-
-* **iclight_sd15_fc.safetensors** - The default relighting model, conditioned on text and foreground. You can use initial latent to influence the relighting.
-
-* **iclight_sd15_fcon.safetensors** - Same as "iclight_sd15_fc.safetensors" but trained with offset noise. Note that the default "iclight_sd15_fc.safetensors" outperform this model slightly in a user study. And this is the reason why the default model is the model without offset noise.
-
-* **iclight_sd15_fbc.safetensors** - Relighting model conditioned with text, foreground, and background.
-
-Also, note that the original [BRIA RMBG 1.4](https://huggingface.co/briaai/RMBG-1.4) is for non-commercial use. If you use IC-Light in commercial projects, replace it with other background replacer like [BiRefNet](https://github.com/ZhengPeng7/BiRefNet).
-
 ## 🤗 Citation
 If you find this repository useful for your research, please use the following BibTeX entry for citation.
 
@@ -117,5 +115,5 @@ If you find this repository useful for your research, please use the following B
 
 ## 👏 Acknowledgements
 
-This repo benefits from [IC-Light](https://github.com/lllyasviel/IC-Light/), [VidToMe](https://github.com/lixirui142/VidToMe/), [Slicedit](https://github.com/fallenshock/Slicedit/), [RAVE](https://github.com/RehgLab/RAVE), [Cosmos](https://github.com/NVIDIA/Cosmos). Thanks for their great work!
+This repo benefits from [IC-Light](https://github.com/lllyasviel/IC-Light/), [VidToMe](https://github.com/lixirui142/VidToMe/), [Slicedit](https://github.com/fallenshock/Slicedit/), [RAVE](https://github.com/RehgLab/RAVE), [Cosmos](https://github.com/NVIDIA/Cosmos). Thanks for their great work! The repo is still under development, we are open to pull request and discussions!
 
