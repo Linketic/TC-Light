@@ -87,7 +87,6 @@ You can start from [configs/tclight_custom.yaml](configs/tclight_custom.yaml), w
   bash scripts/relight.sh
   ```
 </details>
-<br>
 
 For evaluation, you can simply use:
 ```bash
