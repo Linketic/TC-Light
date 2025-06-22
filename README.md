@@ -12,9 +12,8 @@
 ![GitHub Repo stars](https://img.shields.io/github/stars/DekuLiuTesla/CityGaussian)
 
 </div>
-<p align="center">
-  <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=114721730598474&bvid=BV1S5N1zME7W&cid=30623665622&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
-</p>
+
+https://github.com/user-attachments/assets/72800f7f-bce6-4ac1-9a3c-bf51f77976a7
 
 This repo contains official implementations of **TC-Light**, a one-shot model used to manipulate the illumination of **high-dynamic videos** such as motion-rich actions and frequent switch of foreground and background objects. It is distinguished by:
 
