@@ -13,7 +13,7 @@
 
 </div>
 
-https://github.com/user-attachments/assets/72800f7f-bce6-4ac1-9a3c-bf51f77976a7
+https://github.com/user-attachments/assets/9d09cdbf-72dc-42ac-8104-1d40cab1551f
 
 This repo contains official implementations of **TC-Light**, a one-shot model used to manipulate the illumination of **high-dynamic videos** such as motion-rich actions and frequent switch of foreground and background objects. It is distinguished by:
 
