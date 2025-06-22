@@ -8,8 +8,8 @@
 <div id="top" align="center">
 
 [![](https://img.shields.io/badge/%F0%9F%9A%80%20-Project%20Page-blue)](https://dekuliutesla.github.io/tclight/)
-[![](https://img.shields.io/badge/%F0%9F%A4%97-Hugging%20Face-orange)](https://huggingface.co/TeslaYang123/CityGaussian)
-![GitHub Repo stars](https://img.shields.io/github/stars/DekuLiuTesla/CityGaussian)
+[![arXiv](https://img.shields.io/badge/arXiv-1234.56789-b31b1b.svg)](https://arxiv.org/abs/1234.56789)
+![GitHub Repo stars](https://img.shields.io/github/stars/Linketic/TC-Light)
 
 </div>
 
@@ -54,7 +54,7 @@ For a fine-grained control, you can customize your .yaml config file and run:
 ```bash
 python run.py --config path/to/your_config.yaml
 ```
-You can start from [configs/tclight_custom.yaml](configs/tclight_custom.yaml), which records the most frequently used parameters and detailed explanation.
+You can start from [configs/tclight_custom.yaml](configs/tclight_custom.yaml), which records the most frequently used parameters and detailed explanation. 
 
 <details>
 <summary><span style="font-weight: bold;">Examples</span></summary>
@@ -79,11 +79,16 @@ You can start from [configs/tclight_custom.yaml](configs/tclight_custom.yaml), w
   bash scripts/relight.sh
   ```
 </details>
+<br>
 
+For evaluation, you can use:
+```bash
+python evaluate.py --output_dir path/to/your_output_dir --eval_cost
+```
 
 ## 🔎 Behaviors
-1. Works better on video resolution over 512x512, which is the minimum resolution used to train IC-Light. 
-2. Works relatively better on realistic scenes than synthetics scenes, no matter in temporal consistency or instruction following ability.
+1. Works better on video resolution over 512x512, which is the minimum resolution used to train IC-Light. A higher resolution helps consistency of image intrinsic properties.
+2. Works relatively better on realistic scenes than synthetics scenes, no matter in temporal consistency or physical plausibility.
 3. Stuggle to drastically change illumination of night scenarios or hard shadows, as done in IC-Light.
 
 ## 📝 TODO List
@@ -114,5 +119,3 @@ If you find this repository useful for your research, please use the following B
 
 This repo benefits from [IC-Light](https://github.com/lllyasviel/IC-Light/), [VidToMe](https://github.com/lixirui142/VidToMe/), [Slicedit](https://github.com/fallenshock/Slicedit/), [RAVE](https://github.com/RehgLab/RAVE), [Cosmos](https://github.com/NVIDIA/Cosmos). Thanks for their great work!
 
-## ❓ FAQ
-- _Out of memory occurs in training._ To finish training with limited VRAM, downsampling images or adjusting max_cache_num (we used a rather large 1024) in train_large.py can be a useful practice. Besides, you can increase `prune_ratio` in parallel tuning to further reduce memory cost.
