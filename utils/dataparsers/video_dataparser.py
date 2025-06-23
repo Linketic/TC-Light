@@ -111,7 +111,8 @@ class VideoDataParser:
 
     def load_or_calc_flow(self, idx, gts, frame_ids, model, flow_prev, is_future, path, save):
         fname = os.path.join(path, f"{frame_ids[idx]:04d}.pt")
-        if os.path.exists(fname):
+        # if file exist and number of frames match, load it
+        if os.path.exists(fname) and len(os.listdir(path)) == len(frame_ids):
             return torch.load(fname)
 
         zero_idx = gts.shape[0] - 1 if is_future else 0

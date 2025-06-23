@@ -1,0 +1,19 @@
+work_dir: "workdir/examples"
+
+data:
+  height: 480       # Must be divisible by 8
+  width: 640        # Must be divisible by 8
+  fps: 25
+
+generation:
+  alpha_t: 0.01      # Disable decayed multi-axis denoising
+  frame_range: [0, -1, 1]
+  background_cond: True
+  background_image_path: "examples/background"
+  local_merge_ratio: 0.9
+  global_merge_ratio: 0.8
+
+  prompt:
+    robotwin: a dual-arm robot sweep blocks on table in the lab
+
+base_config: configs/tclight_default.yaml

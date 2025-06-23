@@ -67,17 +67,13 @@ You can start from [configs/tclight_custom.yaml](configs/tclight_custom.yaml), w
 <details>
 <summary><span style="font-weight: bold;">Examples</span></summary>
 
-  #### relight `examples/droid.mp4`
+  #### relight the entire field of view
   ```bash
   python run.py --config configs/examples/tclight_droid.yaml
   ```
-
-  #### relight `examples/navsim.mp4`
   ```bash
   python run.py --config configs/examples/tclight_navsim.yaml
   ```
-
-  #### relight `examples/scand.avi`
   ```bash
   python run.py --config configs/examples/tclight_scand.yaml
   ```
@@ -85,6 +81,13 @@ You can start from [configs/tclight_custom.yaml](configs/tclight_custom.yaml), w
   #### relight all three videos parallelly
   ```bash
   bash scripts/relight.sh
+  ```
+
+  #### relight foreground with static background condition
+  ```bash
+  # we generate compatible background image by using foreground mode of IC-Light, then remove foreground and inpaint the image with tools like sider.ai
+  # for satisfactory results, a consistent and complete foreground segmentation is preferred.
+  python run.py --config configs/examples/tclight_bkgd_robotwin.yaml
   ```
 </details>
 
