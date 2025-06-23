@@ -28,7 +28,7 @@ These features make it particularly suitable for sim2real and real2real augmenta
     <img src='assets/pipeline.png'/>
 </div>
 
-**TC-Light** overview. Given the source video and text prompt p, the model tokenizes input latents in xy plane and yt plane seperately. The predicted noises are combined together for denoising. Its output then undergoes two-stage optimization to enhance temporal consistency of illumination and texture. Please refer to the paper for more details.
+<b>TC-Light</b> overview. Given the source video and text prompt p, the model tokenizes input latents in xy plane and yt plane seperately. The predicted noises are combined together for denoising. Its output then undergoes two-stage optimization. The first stage aligns exposure by optimizing appearance embedding. The second stage aligns detailed texture and illumination by optimizing <b>Unique Video Tensor</b>, which is compressed version of video Please refer to the paper for more details.
 
 ## 💾 Preparation
 
