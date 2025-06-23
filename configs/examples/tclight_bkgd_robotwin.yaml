@@ -1,9 +1,10 @@
 work_dir: "workdir/examples"
 
 data:
+  rgb_path: "data/robotwin/Block Sweep/observer.mp4"
   height: 480       # Must be divisible by 8
   width: 640        # Must be divisible by 8
-  fps: 25
+  fps: 30
 
 generation:
   alpha_t: 0.01      # Disable decayed multi-axis denoising
