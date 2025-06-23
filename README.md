@@ -86,7 +86,7 @@ You can start from [configs/tclight_custom.yaml](configs/tclight_custom.yaml), w
   #### relight foreground with static background condition
   ```bash
   # we generate compatible background image by using foreground mode of IC-Light, then remove foreground and inpaint the image with tools like sider.ai
-  # for satisfactory results, a consistent and complete foreground segmentation is preferred.
+  # for satisfactory results, a consistent and complete foreground segmentation is preferred, and we use BriaRMBG as default.
   python run.py --config configs/examples/tclight_bkgd_robotwin.yaml
   ```
 </details>
