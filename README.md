@@ -1,5 +1,5 @@
 <p align="center">
-<h1 align="center"><strong>TC-Light: Temporally Consistent Relighting for Dynamic Long Videos</strong></h1>
+<h1 align="center"><img src="assets/android-chrome-192x192.png" style="vertical-align: -8px;" :height="33px" width="33px"><strong> TC-Light: Temporally Consistent Relighting for Dynamic Long Videos</strong></h1>
   <p align="center">
     <em>Institute of Automation, Chinese Academy of Sciences; University of Chinese Academy of Sciences</em>
   </p>
