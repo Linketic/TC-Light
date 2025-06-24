@@ -8,7 +8,7 @@
 <div id="top" align="center">
 
 [![](https://img.shields.io/badge/%F0%9F%9A%80%20-Project%20Page-blue)](https://dekuliutesla.github.io/tclight/)
-[![arXiv](https://img.shields.io/badge/arXiv-1234.56789-b31b1b.svg)](https://arxiv.org/abs/1234.56789)
+[![arXiv](https://img.shields.io/badge/arXiv-2506.18904-b31b1b.svg)](https://arxiv.org/abs/2506.18904)
 ![GitHub Repo stars](https://img.shields.io/github/stars/Linketic/TC-Light)
 
 </div>
